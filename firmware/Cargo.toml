@@ -1,0 +1,17 @@
+[package]
+name = "firmware"
+version = "0.1.0"
+authors = ["Danilo Bargen <mail@dbrgn.ch>"]
+edition = "2018"
+
+[dependencies]
+embedded-hal = "0.2"
+nb = "1"
+cortex-m = "0.7"
+cortex-m-rt = "0.6"
+cortex-m-rtic = "0.5"
+panic-halt = "0.2"
+
+[dependencies.stm32f4xx-hal]
+version = "0.9"
+features = ["rt", "stm32f411"]
