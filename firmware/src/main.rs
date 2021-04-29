@@ -3,6 +3,7 @@
 
 use panic_halt as _;
 use rtic::app;
+use rtt_target::{rprintln, rtt_init_print};
 use stm32f4xx_hal::{
     gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
     i2c::I2c,
@@ -30,11 +31,17 @@ const APP: () = {
 
     #[init]
     fn init(mut ctx: init::Context) -> init::LateResources {
+        rtt_init_print!();
+
+        rprintln!("Initializing");
+
         let mut syscfg = ctx.device.SYSCFG.constrain();
 
         // Clock setup
         let rcc = ctx.device.RCC.constrain();
         let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
+
+        rprintln!("Clock setup done");
 
         // GPIO setup
         let gpioa = ctx.device.GPIOA.split();
@@ -50,30 +57,33 @@ const APP: () = {
         let led = gpioc.pc13.into_push_pull_output();
         let mut button = gpioa.pa0.into_pull_up_input();
 
+        rprintln!("I2C and GPIO setup done");
+
         // Light sensor
+        //
+        // TODO: Timeout!
         let mut lightsensor = Veml6030::new(i2c, veml6030::SlaveAddr::default());
-        if let Err(_e) = lightsensor.set_gain(veml6030::Gain::OneQuarter) {
-            // TODO: Error handling
+        if let Err(e) = lightsensor.set_gain(veml6030::Gain::OneQuarter) {
+            rprintln!("Could not set VEML gain: {:?}", e);
         }
-        if let Err(_e) = lightsensor.set_integration_time(VEML_INTEGRATION_TIME) {
-            // TODO: Error handling
+        if let Err(e) = lightsensor.set_integration_time(VEML_INTEGRATION_TIME) {
+            rprintln!("Could not set VEML integration time: {:?}", e);
         }
+        rprintln!("Light sensor setup done");
 
         // Wire up button interrupt
         button.make_interrupt_source(&mut syscfg);
         button.enable_interrupt(&mut ctx.device.EXTI);
         button.trigger_on_edge(&mut ctx.device.EXTI, Edge::RISING);
 
-        init::LateResources { button, led, lightsensor }
-    }
+        rprintln!("Done initializing");
 
-    #[idle]
-    fn idle(_cx: idle::Context) -> ! {
-        loop {}
+        init::LateResources { button, led, lightsensor }
     }
 
     #[task(binds = EXTI0, resources = [button, led])]
     fn button_click(ctx: button_click::Context) {
+        rprintln!("Button pressed");
         ctx.resources.button.clear_interrupt_pending_bit();
         ctx.resources.led.toggle().unwrap();
     }
