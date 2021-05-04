@@ -87,7 +87,7 @@ const APP: () = {
             hclk: clocks.hclk(),
         };
         USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
-        let mut serial = usbd_serial::SerialPort::new(USB_BUS.as_ref().unwrap());
+        let serial = usbd_serial::SerialPort::new(USB_BUS.as_ref().unwrap());
         let usb_dev = UsbDeviceBuilder::new(USB_BUS.as_ref().unwrap(), UsbVidPid(0x16c0, 0x27dd))
             .manufacturer("Bargen Software")
             .product("ChickenDoor")
@@ -149,37 +149,44 @@ const APP: () = {
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
     #[task(binds=OTG_FS, resources = [usb_dev, serial])]
-    fn on_usb(mut ctx: on_usb::Context) {
-        usb_poll(&mut ctx.resources.usb_dev, &mut ctx.resources.serial);
+    fn on_usb(ctx: on_usb::Context) {
+        let usb_dev = ctx.resources.usb_dev;
+        let serial = ctx.resources.serial;
+
+        // Poll USB device for events
+        if !usb_dev.poll(&mut [serial]) {
+            return;
+        }
+
+        // Handle serial input
+        let mut buf = [0u8; 8];
+        match serial.read(&mut buf) {
+            // Data received
+            Ok(count) if count > 0 => {
+                for byte in &buf {
+                    handle_command(*byte, serial);
+                }
+            }
+
+            // No data received
+            _ => {}
+        }
     }
 };
 
-/// Poll USB serial port.
-fn usb_poll<B: usb_device::bus::UsbBus>(
-    usb_dev: &mut UsbDevice<'static, B>,
-    serial: &mut SerialPort<'static, B>,
-) {
-    // Poll USB device for events
-    if !usb_dev.poll(&mut [serial]) {
-        return;
-    }
-
-    // Handle serial input
-    let mut buf = [0u8; 8];
-    match serial.read(&mut buf) {
-        // Data received
-        Ok(count) if count > 0 => {
-            // If input contains a '?', return info message
-            if buf.contains(&b'?') {
-                serial.write(b"\n   \\\\\n").ok();
-                serial.write(b"   (o>\n").ok();
-                serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n").ok();
-                serial.write(b" \\_/_)\n").ok();
-                serial.write(b"  _|_\n\n").ok();
-            }
+/// Handle single-byte commands sent via serial
+fn handle_command<B: usb_device::bus::UsbBus>(byte: u8, serial: &mut SerialPort<'static, B>) {
+    match byte {
+        b'?' => {
+            serial.write(b"   \\\\\n").ok();
+            serial.write(b"   (o>\n").ok();
+            serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n").ok();
+            serial.write(b" \\_/_)\n").ok();
+            serial.write(b"  _|_\n\n").ok();
+            serial.write(b"Available commands:\n\n").ok();
+            serial.write(b" ? - Show this status / help\n").ok();
+            serial.write(b"\n").ok();
         }
-
-        // No data received
-        _ => {}
+        _ => { /* Unknown command, ignore */ }
     }
 }
