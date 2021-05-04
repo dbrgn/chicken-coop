@@ -1,9 +1,11 @@
 #![no_std]
 #![no_main]
 
+use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x};
 use panic_halt as _;
 use rtic::app;
 use rtt_target::{rprintln, rtt_init_print};
+use shared_bus_rtic::SharedBus;
 use stm32f4xx_hal::{
     gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
     i2c::I2c,
@@ -15,6 +17,16 @@ use veml6030::Veml6030;
 // VEML ambient light sensor integration time
 const VEML_INTEGRATION_TIME: veml6030::IntegrationTime = veml6030::IntegrationTime::Ms100;
 
+type SharedBusType = I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
+
+pub struct SharedBusResources<T: 'static> {
+    // Ambient light sensor (VEML7700)
+    lightsensor: Veml6030<SharedBus<T>>,
+
+    // Real-time clock (DS3231)
+    rtc: Ds323x<I2cInterface<SharedBus<T>>, DS3231>,
+}
+
 #[app(device = stm32f4xx_hal::stm32, peripherals = true)]
 const APP: () = {
     struct Resources {
@@ -22,11 +34,8 @@ const APP: () = {
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
 
-        // Ambient light sensor
-        lightsensor: Veml6030<I2c<pac::I2C1, (
-            gpiob::PB6<AlternateOD<AF4>>,
-            gpiob::PB7<AlternateOD<AF4>>,
-        )>>,
+        // I²C devices
+        i2c: SharedBusResources<SharedBusType>,
     }
 
     #[init]
@@ -53,6 +62,9 @@ const APP: () = {
         let sda = gpiob.pb7.into_alternate_af4().set_open_drain();
         let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), clocks);
 
+        // Create shared bus
+        let bus_manager = shared_bus_rtic::new!(i2c, SharedBusType);
+
         // LED and button for debugging purposes
         let led = gpioc.pc13.into_push_pull_output();
         let mut button = gpioa.pa0.into_pull_up_input();
@@ -62,7 +74,7 @@ const APP: () = {
         // Light sensor
         //
         // TODO: Timeout!
-        let mut lightsensor = Veml6030::new(i2c, veml6030::SlaveAddr::default());
+        let mut lightsensor = Veml6030::new(bus_manager.acquire(), veml6030::SlaveAddr::default());
         if let Err(e) = lightsensor.set_gain(veml6030::Gain::OneQuarter) {
             rprintln!("Could not set VEML gain: {:?}", e);
         }
@@ -71,6 +83,9 @@ const APP: () = {
         }
         rprintln!("Light sensor setup done");
 
+        // RTC
+        let rtc = Ds323x::new_ds3231(bus_manager.acquire());
+
         // Wire up button interrupt
         button.make_interrupt_source(&mut syscfg);
         button.enable_interrupt(&mut ctx.device.EXTI);
@@ -78,7 +93,11 @@ const APP: () = {
 
         rprintln!("Done initializing");
 
-        init::LateResources { button, led, lightsensor }
+        init::LateResources {
+            button,
+            led,
+            i2c: SharedBusResources { lightsensor, rtc },
+        }
     }
 
     #[task(binds = EXTI0, resources = [button, led])]
