@@ -14,8 +14,10 @@ cortex-m-rtic = "0.5"
 panic-halt = "0.2"
 rtt-target = { version = "0.3", features = ["cortex-m"] }
 shared-bus-rtic = "0.2"
+usb-device = "0.2"
+usbd-serial = "0.1"
 veml6030 = "0.1.2"
 
 [dependencies.stm32f4xx-hal]
 version = "0.9"
-features = ["rt", "stm32f411"]
+features = ["rt", "stm32f411", "usb_fs"]

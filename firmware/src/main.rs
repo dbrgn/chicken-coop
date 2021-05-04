@@ -9,9 +9,15 @@ use shared_bus_rtic::SharedBus;
 use stm32f4xx_hal::{
     gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
     i2c::I2c,
+    otg_fs::{UsbBus, UsbBusType, USB},
     pac,
     prelude::*,
 };
+use usb_device::{
+    bus::UsbBusAllocator,
+    prelude::{UsbDevice, UsbDeviceBuilder, UsbVidPid},
+};
+use usbd_serial::{SerialPort, USB_CLASS_CDC};
 use veml6030::Veml6030;
 
 // VEML ambient light sensor integration time
@@ -34,12 +40,21 @@ const APP: () = {
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
 
+        // USB
+        usb_dev: UsbDevice<'static, UsbBusType>,
+
+        // Serial
+        serial: SerialPort<'static, UsbBusType>,
+
         // I²C devices
         i2c: SharedBusResources<SharedBusType>,
     }
 
     #[init]
     fn init(mut ctx: init::Context) -> init::LateResources {
+        static mut EP_MEMORY: [u32; 1024] = [0; 1024];
+        static mut USB_BUS: Option<UsbBusAllocator<UsbBusType>> = None;
+
         rtt_init_print!();
 
         rprintln!("Initializing");
@@ -48,7 +63,12 @@ const APP: () = {
 
         // Clock setup
         let rcc = ctx.device.RCC.constrain();
-        let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
+        let clocks = rcc
+            .cfgr
+            .use_hse(25.mhz())
+            .sysclk(48.mhz())
+            .require_pll48clk()
+            .freeze();
 
         rprintln!("Clock setup done");
 
@@ -56,6 +76,24 @@ const APP: () = {
         let gpioa = ctx.device.GPIOA.split();
         let gpiob = ctx.device.GPIOB.split();
         let gpioc = ctx.device.GPIOC.split();
+
+        // USB setup: We're using USB FS for serial output
+        let usb = USB {
+            usb_global: ctx.device.OTG_FS_GLOBAL,
+            usb_device: ctx.device.OTG_FS_DEVICE,
+            usb_pwrclk: ctx.device.OTG_FS_PWRCLK,
+            pin_dm: gpioa.pa11.into_alternate_af10(),
+            pin_dp: gpioa.pa12.into_alternate_af10(),
+            hclk: clocks.hclk(),
+        };
+        USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
+        let mut serial = usbd_serial::SerialPort::new(USB_BUS.as_ref().unwrap());
+        let usb_dev = UsbDeviceBuilder::new(USB_BUS.as_ref().unwrap(), UsbVidPid(0x16c0, 0x27dd))
+            .manufacturer("Bargen Software")
+            .product("ChickenDoor")
+            .serial_number("0001")
+            .device_class(USB_CLASS_CDC)
+            .build();
 
         // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
         let scl = gpiob.pb6.into_alternate_af4().set_open_drain();
@@ -96,6 +134,8 @@ const APP: () = {
         init::LateResources {
             button,
             led,
+            usb_dev,
+            serial,
             i2c: SharedBusResources { lightsensor, rtc },
         }
     }
@@ -106,4 +146,40 @@ const APP: () = {
         ctx.resources.button.clear_interrupt_pending_bit();
         ctx.resources.led.toggle().unwrap();
     }
+
+    /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
+    #[task(binds=OTG_FS, resources = [usb_dev, serial])]
+    fn on_usb(mut ctx: on_usb::Context) {
+        usb_poll(&mut ctx.resources.usb_dev, &mut ctx.resources.serial);
+    }
 };
+
+/// Poll USB serial port.
+fn usb_poll<B: usb_device::bus::UsbBus>(
+    usb_dev: &mut UsbDevice<'static, B>,
+    serial: &mut SerialPort<'static, B>,
+) {
+    // Poll USB device for events
+    if !usb_dev.poll(&mut [serial]) {
+        return;
+    }
+
+    // Handle serial input
+    let mut buf = [0u8; 8];
+    match serial.read(&mut buf) {
+        // Data received
+        Ok(count) if count > 0 => {
+            // If input contains a '?', return info message
+            if buf.contains(&b'?') {
+                serial.write(b"\n   \\\\\n");
+                serial.write(b"   (o>\n");
+                serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n");
+                serial.write(b" \\_/_)\n");
+                serial.write(b"  _|_\n\n");
+            }
+        }
+
+        // No data received
+        _ => {}
+    }
+}
