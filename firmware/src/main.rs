@@ -171,11 +171,11 @@ fn usb_poll<B: usb_device::bus::UsbBus>(
         Ok(count) if count > 0 => {
             // If input contains a '?', return info message
             if buf.contains(&b'?') {
-                serial.write(b"\n   \\\\\n");
-                serial.write(b"   (o>\n");
-                serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n");
-                serial.write(b" \\_/_)\n");
-                serial.write(b"  _|_\n\n");
+                serial.write(b"\n   \\\\\n").ok();
+                serial.write(b"   (o>\n").ok();
+                serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n").ok();
+                serial.write(b" \\_/_)\n").ok();
+                serial.write(b"  _|_\n\n").ok();
             }
         }
 
