@@ -40,6 +40,7 @@ pub enum Error {
     VemlGainSetFailed,
     VemlIntegrationTimeSetFailed,
     VemlEnableFailed,
+    UfmtSerialWriteError,
 }
 
 impl Error {
@@ -59,7 +60,21 @@ impl Error {
             Self::VemlGainSetFailed => b"VEML7700: Setting gain failed",
             Self::VemlIntegrationTimeSetFailed => b"VEML7700: Setting integration time failed",
             Self::VemlEnableFailed => b"VEML7700: Enabling failed",
+            Self::UfmtSerialWriteError => b"Write serial log using ufmt failed",
         }
+    }
+}
+
+/// Writer for a `SerialPort` that supports ufmt
+struct SerialWriter<'a>(&'a mut SerialPort<'static, UsbBusType>);
+
+impl<'a> ufmt::uWrite for SerialWriter<'a> {
+    type Error = Error;
+
+    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+        self.0.write(s.as_bytes())
+            .map(|_| ())
+            .map_err(|_| Error::UfmtSerialWriteError)
     }
 }
 
@@ -192,7 +207,7 @@ const APP: () = {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, resources = [usb_dev, serial, errors])]
+    #[task(binds=OTG_FS, resources = [usb_dev, serial, i2c, errors])]
     fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
         if !ctx.resources.usb_dev.poll(&mut [ctx.resources.serial]) {
@@ -238,7 +253,18 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             serial.write(b"\n").ok();
             serial.write(b"Available commands:\n\n").ok();
             serial.write(b" ? - Show this status report\n").ok();
+            serial.write(b" l - Measure ambient light level\n").ok();
             serial.write(b"\n").ok();
+        }
+        b'l' | b'L' => {
+            match ctx.resources.i2c.lightsensor.read_lux() {
+                Ok(lux) => {
+                    ufmt::uwriteln!(SerialWriter(serial), "Current brightness level: {} lux", lux as usize).ok();
+                }
+                Err(_e) => {
+                    serial.write(b"Could not measure brightness level\n").ok();
+                }
+            }
         }
         _ => { /* Unknown command, ignore */ }
     }
