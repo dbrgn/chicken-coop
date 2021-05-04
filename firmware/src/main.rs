@@ -237,7 +237,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             }
             serial.write(b"\n").ok();
             serial.write(b"Available commands:\n\n").ok();
-            serial.write(b" ? - Show this status / help\n").ok();
+            serial.write(b" ? - Show this status report\n").ok();
             serial.write(b"\n").ok();
         }
         _ => { /* Unknown command, ignore */ }
