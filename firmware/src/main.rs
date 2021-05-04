@@ -2,6 +2,7 @@
 #![no_main]
 
 use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x};
+use heapless::spsc::Queue;
 use panic_halt as _;
 use rtic::app;
 use rtt_target::{rprintln, rtt_init_print};
@@ -33,12 +34,42 @@ pub struct SharedBusResources<T: 'static> {
     rtc: Ds323x<I2cInterface<SharedBus<T>>, DS3231>,
 }
 
+/// All possible error types
+#[derive(PartialEq, Copy, Clone)]
+pub enum Error {
+    VemlGainSetFailed,
+    VemlIntegrationTimeSetFailed,
+    VemlEnableFailed,
+}
+
+impl Error {
+    fn log<const N: usize>(&self, queue: &mut Queue<Self, N>) {
+        match queue.enqueue(*self) {
+            Ok(()) => { /* Enqueued */ },
+            Err(e) => {
+                // Queue full, drop the oldest value and try again
+                queue.dequeue();
+                queue.enqueue(e).ok();
+            }
+        }
+    }
+
+    fn to_bytes(&self) -> &'static [u8] {
+        match self {
+            Self::VemlGainSetFailed => b"VEML7700: Setting gain failed",
+            Self::VemlIntegrationTimeSetFailed => b"VEML7700: Setting integration time failed",
+            Self::VemlEnableFailed => b"VEML7700: Enabling failed",
+        }
+    }
+}
+
 #[app(device = stm32f4xx_hal::stm32, peripherals = true)]
 const APP: () = {
     struct Resources {
         // Debugging
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
+        errors: Queue<Error, 16>, // Allow logging up to 16 errors
 
         // USB
         usb_dev: UsbDevice<'static, UsbBusType>,
@@ -56,6 +87,8 @@ const APP: () = {
         static mut USB_BUS: Option<UsbBusAllocator<UsbBusType>> = None;
 
         rtt_init_print!();
+
+        let mut errors = Queue::new();
 
         rprintln!("Initializing");
 
@@ -109,16 +142,26 @@ const APP: () = {
 
         rprintln!("I2C and GPIO setup done");
 
-        // Light sensor
+        // VEML7700 ambientlight sensor
+        //
+        // Note: After enabling the sensor, a startup time of 4 ms plus the
+        // integration time must be awaited.
         //
         // TODO: Timeout!
         let mut lightsensor = Veml6030::new(bus_manager.acquire(), veml6030::SlaveAddr::default());
         if let Err(e) = lightsensor.set_gain(veml6030::Gain::OneQuarter) {
             rprintln!("Could not set VEML gain: {:?}", e);
+            Error::VemlGainSetFailed.log(&mut errors);
         }
         if let Err(e) = lightsensor.set_integration_time(VEML_INTEGRATION_TIME) {
             rprintln!("Could not set VEML integration time: {:?}", e);
+            Error::VemlIntegrationTimeSetFailed.log(&mut errors);
         }
+        if let Err(e) = lightsensor.enable() {
+            rprintln!("Could not enable VEML7700: {:?}", e);
+            Error::VemlEnableFailed.log(&mut errors);
+        }
+
         rprintln!("Light sensor setup done");
 
         // RTC
@@ -134,6 +177,7 @@ const APP: () = {
         init::LateResources {
             button,
             led,
+            errors,
             usb_dev,
             serial,
             i2c: SharedBusResources { lightsensor, rtc },
@@ -148,23 +192,20 @@ const APP: () = {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, resources = [usb_dev, serial])]
-    fn on_usb(ctx: on_usb::Context) {
-        let usb_dev = ctx.resources.usb_dev;
-        let serial = ctx.resources.serial;
-
+    #[task(binds=OTG_FS, resources = [usb_dev, serial, errors])]
+    fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
-        if !usb_dev.poll(&mut [serial]) {
+        if !ctx.resources.usb_dev.poll(&mut [ctx.resources.serial]) {
             return;
         }
 
         // Handle serial input
         let mut buf = [0u8; 8];
-        match serial.read(&mut buf) {
+        match ctx.resources.serial.read(&mut buf) {
             // Data received
             Ok(count) if count > 0 => {
                 for byte in &buf {
-                    handle_command(*byte, serial);
+                    handle_command(*byte, &mut ctx);
                 }
             }
 
@@ -175,14 +216,26 @@ const APP: () = {
 };
 
 /// Handle single-byte commands sent via serial
-fn handle_command<B: usb_device::bus::UsbBus>(byte: u8, serial: &mut SerialPort<'static, B>) {
+fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
+    let serial = &mut ctx.resources.serial;
     match byte {
         b'?' => {
             serial.write(b"   \\\\\n").ok();
             serial.write(b"   (o>\n").ok();
             serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n").ok();
             serial.write(b" \\_/_)\n").ok();
-            serial.write(b"  _|_\n\n").ok();
+            serial.write(b"  _|_\n").ok();
+            serial.write(b"\n").ok();
+            serial.write(b"Logged errors:\n\n").ok();
+            for error in ctx.resources.errors.iter() {
+                serial.write(b"- ").ok();
+                serial.write(error.to_bytes()).ok();
+                serial.write(b"\n").ok();
+            }
+            if ctx.resources.errors.is_empty() {
+                serial.write(b" None, all good!\n").ok();
+            }
+            serial.write(b"\n").ok();
             serial.write(b"Available commands:\n\n").ok();
             serial.write(b" ? - Show this status / help\n").ok();
             serial.write(b"\n").ok();
