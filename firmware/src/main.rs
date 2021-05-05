@@ -22,6 +22,10 @@ use usb_device::{
 use usbd_serial::{SerialPort, USB_CLASS_CDC};
 use veml6030::Veml6030;
 
+mod motor;
+
+use crate::motor::Motor;
+
 // VEML ambient light sensor integration time
 const VEML_INTEGRATION_TIME: veml6030::IntegrationTime = veml6030::IntegrationTime::Ms100;
 
@@ -42,12 +46,13 @@ pub enum Error {
     VemlIntegrationTimeSetFailed,
     VemlEnableFailed,
     UfmtSerialWriteError,
+    MotorGpioWriteError,
 }
 
 impl Error {
     fn log<const N: usize>(&self, queue: &mut Queue<Self, N>) {
         match queue.enqueue(*self) {
-            Ok(()) => { /* Enqueued */ },
+            Ok(()) => { /* Enqueued */ }
             Err(e) => {
                 // Queue full, drop the oldest value and try again
                 queue.dequeue();
@@ -62,6 +67,7 @@ impl Error {
             Self::VemlIntegrationTimeSetFailed => b"VEML7700: Setting integration time failed",
             Self::VemlEnableFailed => b"VEML7700: Enabling failed",
             Self::UfmtSerialWriteError => b"Write serial log using ufmt failed",
+            Self::MotorGpioWriteError => b"Motor GPIO write error",
         }
     }
 }
@@ -73,7 +79,8 @@ impl<'a> ufmt::uWrite for SerialWriter<'a> {
     type Error = Error;
 
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        self.0.write(s.as_bytes())
+        self.0
+            .write(s.as_bytes())
             .map(|_| ())
             .map_err(|_| Error::UfmtSerialWriteError)
     }
@@ -86,6 +93,9 @@ const APP: () = {
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
         errors: Queue<Error, 16>, // Allow logging up to 16 errors
+
+        // Motor control
+        motor: Motor,
 
         // USB
         usb_dev: UsbDevice<'static, UsbBusType>,
@@ -144,6 +154,12 @@ const APP: () = {
             .device_class(USB_CLASS_CDC)
             .build();
 
+        // Motor driver pins
+        let motor = Motor {
+            forwards: gpioa.pa8.into_push_pull_output().downgrade(),
+            backwards: gpioa.pa9.into_push_pull_output().downgrade(),
+        };
+
         // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
         let scl = gpiob.pb6.into_alternate_af4().set_open_drain();
         let sda = gpiob.pb7.into_alternate_af4().set_open_drain();
@@ -194,6 +210,7 @@ const APP: () = {
             button,
             led,
             errors,
+            motor,
             usb_dev,
             serial,
             i2c: SharedBusResources { lightsensor, rtc },
@@ -208,7 +225,7 @@ const APP: () = {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, resources = [usb_dev, serial, i2c, errors])]
+    #[task(binds=OTG_FS, resources = [usb_dev, serial, i2c, errors, motor])]
     fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
         if !ctx.resources.usb_dev.poll(&mut [ctx.resources.serial]) {
@@ -248,11 +265,17 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 Ok(true) => serial.write(b"yes\n").ok(),
                 Ok(false) => serial.write(b"no\n").ok(),
                 Err(ds323x::Error::Comm(hal::i2c::Error::BUS)) => serial.write(b"bus error\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::OVERRUN)) => serial.write(b"overrun error\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::OVERRUN)) => {
+                    serial.write(b"overrun error\n").ok()
+                }
                 Err(ds323x::Error::Comm(hal::i2c::Error::NACK)) => serial.write(b"nack\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::TIMEOUT)) => serial.write(b"timeout\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::TIMEOUT)) => {
+                    serial.write(b"timeout\n").ok()
+                }
                 Err(ds323x::Error::Comm(hal::i2c::Error::CRC)) => serial.write(b"crc\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::ARBITRATION)) => serial.write(b"arbitration lost\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::ARBITRATION)) => {
+                    serial.write(b"arbitration lost\n").ok()
+                }
                 Err(ds323x::Error::Pin(_)) => serial.write(b"pin error\n").ok(),
                 Err(ds323x::Error::InvalidInputData) => serial.write(b"data error\n").ok(),
             };
@@ -272,43 +295,80 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             serial.write(b" l - Measure ambient light level\n").ok();
             serial.write(b" c - Output RTC clock info\n").ok();
             serial.write(b" t - Output RTC temperature\n").ok();
+            serial.write(b" f - Motor FW\n").ok();
+            serial.write(b" b - Motor BW\n").ok();
+            serial.write(b" o - Motor off\n").ok();
             serial.write(b"\n").ok();
         }
-        b'l' | b'L' => {
-            match ctx.resources.i2c.lightsensor.read_lux() {
-                Ok(lux) => {
-                    ufmt::uwriteln!(SerialWriter(serial), "Current brightness level: {} lux", lux as usize).ok();
-                }
-                Err(_e) => {
-                    serial.write(b"Could not measure brightness level\n").ok();
-                }
+        b'l' | b'L' => match ctx.resources.i2c.lightsensor.read_lux() {
+            Ok(lux) => {
+                ufmt::uwriteln!(
+                    SerialWriter(serial),
+                    "Current brightness level: {} lux",
+                    lux as usize
+                )
+                .ok();
             }
-        }
+            Err(_e) => {
+                serial.write(b"Could not measure brightness level\n").ok();
+            }
+        },
         b'c' | b'C' => {
-            match (ctx.resources.i2c.rtc.get_hours(), ctx.resources.i2c.rtc.get_minutes()) {
+            match (
+                ctx.resources.i2c.rtc.get_hours(),
+                ctx.resources.i2c.rtc.get_minutes(),
+            ) {
                 (Ok(ds323x::Hours::AM(hours)), Ok(minutes)) => {
-                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{} AM", hours, minutes).ok();
+                    ufmt::uwriteln!(
+                        SerialWriter(serial),
+                        "Current time: {}:{} AM",
+                        hours,
+                        minutes
+                    )
+                    .ok();
                 }
                 (Ok(ds323x::Hours::PM(hours)), Ok(minutes)) => {
-                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{} PM", hours, minutes).ok();
+                    ufmt::uwriteln!(
+                        SerialWriter(serial),
+                        "Current time: {}:{} PM",
+                        hours,
+                        minutes
+                    )
+                    .ok();
                 }
                 (Ok(ds323x::Hours::H24(hours)), Ok(minutes)) => {
-                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{}", hours, minutes).ok();
+                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{}", hours, minutes)
+                        .ok();
                 }
                 _ => {
                     serial.write(b"Could not determine time\n").ok();
                 }
             }
         }
-        b't' | b'T' => {
-            match ctx.resources.i2c.rtc.get_temperature() {
-                Ok(temp) => {
-                    ufmt::uwriteln!(SerialWriter(serial), "Current temperature: {}", temp as usize).ok();
-                }
-                Err(_) => {
-                    serial.write(b"Could not determine temperature\n").ok();
-                }
+        b't' | b'T' => match ctx.resources.i2c.rtc.get_temperature() {
+            Ok(temp) => {
+                ufmt::uwriteln!(
+                    SerialWriter(serial),
+                    "Current temperature: {}",
+                    temp as usize
+                )
+                .ok();
             }
+            Err(_) => {
+                serial.write(b"Could not determine temperature\n").ok();
+            }
+        },
+        b'f' | b'F' => {
+            ctx.resources.motor.forwards();
+            serial.write(b"Motor: Move forwards\n").ok();
+        }
+        b'b' | b'B' => {
+            ctx.resources.motor.backwards();
+            serial.write(b"Motor: Move backwards\n").ok();
+        }
+        b'o' | b'O' => {
+            ctx.resources.motor.off();
+            serial.write(b"Motor: Off\n").ok();
         }
         _ => { /* Unknown command, ignore */ }
     }
