@@ -1,13 +1,14 @@
 #![no_std]
 #![no_main]
 
-use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x};
+use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc};
 use heapless::spsc::Queue;
 use panic_halt as _;
 use rtic::app;
 use rtt_target::{rprintln, rtt_init_print};
 use shared_bus_rtic::SharedBus;
 use stm32f4xx_hal::{
+    self as hal,
     gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
     i2c::I2c,
     otg_fs::{UsbBus, UsbBusType, USB},
@@ -241,6 +242,21 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             serial.write(b" \\_/_)\n").ok();
             serial.write(b"  _|_\n").ok();
             serial.write(b"\n").ok();
+            serial.write(b"Status:\n\n").ok();
+            serial.write(b" RTC running: ").ok();
+            match ctx.resources.i2c.rtc.running() {
+                Ok(true) => serial.write(b"yes\n").ok(),
+                Ok(false) => serial.write(b"no\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::BUS)) => serial.write(b"bus error\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::OVERRUN)) => serial.write(b"overrun error\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::NACK)) => serial.write(b"nack\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::TIMEOUT)) => serial.write(b"timeout\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::CRC)) => serial.write(b"crc\n").ok(),
+                Err(ds323x::Error::Comm(hal::i2c::Error::ARBITRATION)) => serial.write(b"arbitration lost\n").ok(),
+                Err(ds323x::Error::Pin(_)) => serial.write(b"pin error\n").ok(),
+                Err(ds323x::Error::InvalidInputData) => serial.write(b"data error\n").ok(),
+            };
+            serial.write(b"\n").ok();
             serial.write(b"Logged errors:\n\n").ok();
             for error in ctx.resources.errors.iter() {
                 serial.write(b"- ").ok();
@@ -248,12 +264,14 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 serial.write(b"\n").ok();
             }
             if ctx.resources.errors.is_empty() {
-                serial.write(b" None, all good!\n").ok();
+                serial.write(b" None\n").ok();
             }
             serial.write(b"\n").ok();
             serial.write(b"Available commands:\n\n").ok();
-            serial.write(b" ? - Show this status report\n").ok();
+            serial.write(b" ? - Show this report\n").ok();
             serial.write(b" l - Measure ambient light level\n").ok();
+            serial.write(b" c - Output RTC clock info\n").ok();
+            serial.write(b" t - Output RTC temperature\n").ok();
             serial.write(b"\n").ok();
         }
         b'l' | b'L' => {
@@ -263,6 +281,32 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 }
                 Err(_e) => {
                     serial.write(b"Could not measure brightness level\n").ok();
+                }
+            }
+        }
+        b'c' | b'C' => {
+            match (ctx.resources.i2c.rtc.get_hours(), ctx.resources.i2c.rtc.get_minutes()) {
+                (Ok(ds323x::Hours::AM(hours)), Ok(minutes)) => {
+                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{} AM", hours, minutes).ok();
+                }
+                (Ok(ds323x::Hours::PM(hours)), Ok(minutes)) => {
+                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{} PM", hours, minutes).ok();
+                }
+                (Ok(ds323x::Hours::H24(hours)), Ok(minutes)) => {
+                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{}", hours, minutes).ok();
+                }
+                _ => {
+                    serial.write(b"Could not determine time\n").ok();
+                }
+            }
+        }
+        b't' | b'T' => {
+            match ctx.resources.i2c.rtc.get_temperature() {
+                Ok(temp) => {
+                    ufmt::uwriteln!(SerialWriter(serial), "Current temperature: {}", temp as usize).ok();
+                }
+                Err(_) => {
+                    serial.write(b"Could not determine temperature\n").ok();
                 }
             }
         }
