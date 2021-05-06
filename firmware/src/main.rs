@@ -14,6 +14,7 @@ use stm32f4xx_hal::{
     otg_fs::{UsbBus, UsbBusType, USB},
     pac,
     prelude::*,
+    timer::{Event, Timer},
 };
 use usb_device::{
     bus::UsbBusAllocator,
@@ -72,12 +73,11 @@ impl Error {
     }
 }
 
-/// Writer for a `SerialPort` that supports ufmt
+/// Wrapper for a `SerialPort` that supports ufmt
 struct SerialWriter<'a>(&'a mut SerialPort<'static, UsbBusType>);
 
 impl<'a> ufmt::uWrite for SerialWriter<'a> {
     type Error = Error;
-
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
         self.0
             .write(s.as_bytes())
@@ -93,6 +93,9 @@ const APP: () = {
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
         errors: Queue<Error, 16>, // Allow logging up to 16 errors
+
+        // Periodic timer
+        timer: Timer<pac::TIM2>,
 
         // Motor control
         motor: Motor,
@@ -199,6 +202,14 @@ const APP: () = {
         // RTC
         let rtc = Ds323x::new_ds3231(bus_manager.acquire());
 
+        // Periodic timer
+        let mut timer = Timer::tim2(ctx.device.TIM2, 1.hz(), clocks);
+        timer.listen(Event::TimeOut);
+        unsafe {
+            // Enable TIM2 interrupt in NVIC
+            pac::NVIC::unmask(pac::Interrupt::TIM2);
+        }
+
         // Wire up button interrupt
         button.make_interrupt_source(&mut syscfg);
         button.enable_interrupt(&mut ctx.device.EXTI);
@@ -210,6 +221,7 @@ const APP: () = {
             button,
             led,
             errors,
+            timer,
             motor,
             usb_dev,
             serial,
@@ -222,6 +234,13 @@ const APP: () = {
         rprintln!("Button pressed");
         ctx.resources.button.clear_interrupt_pending_bit();
         ctx.resources.led.toggle().unwrap();
+    }
+
+    /// This task runs every second.
+    #[task(binds = TIM2, resources = [led, timer])]
+    fn every_second(ctx: every_second::Context) {
+        ctx.resources.led.toggle().unwrap();
+        ctx.resources.timer.clear_interrupt(Event::TimeOut);
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
