@@ -2,3 +2,4 @@
 #![cfg_attr(not(test), no_std)]
 
 mod door_sensors;
+mod states;

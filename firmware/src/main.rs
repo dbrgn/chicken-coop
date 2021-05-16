@@ -26,8 +26,13 @@ use veml6030::Veml6030;
 
 mod door_sensors;
 mod motor;
+mod states;
 
-use crate::{door_sensors::{DoorSensors, DoorStatus}, motor::Motor};
+use crate::{
+    door_sensors::{DoorSensors, DoorStatus},
+    motor::Motor,
+    states::State,
+};
 
 // VEML ambient light sensor integration time
 const VEML_INTEGRATION_TIME: veml6030::IntegrationTime = veml6030::IntegrationTime::Ms100;
@@ -91,6 +96,10 @@ impl<'a> ufmt::uWrite for SerialWriter<'a> {
 #[app(device = stm32f4xx_hal::stm32, peripherals = true)]
 const APP: () = {
     struct Resources {
+        // State machine
+        #[init(State::Initial)]
+        state: State,
+
         // Debugging
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
@@ -162,19 +171,11 @@ const APP: () = {
             .device_class(USB_CLASS_CDC)
             .build();
 
-        // Motor driver pins
+        // Motor driver
         let motor = Motor {
             forwards: gpioa.pa8.into_push_pull_output().downgrade(),
             backwards: gpioa.pa9.into_push_pull_output().downgrade(),
         };
-
-        // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
-        let scl = gpiob.pb6.into_alternate_af4().set_open_drain();
-        let sda = gpiob.pb7.into_alternate_af4().set_open_drain();
-        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), clocks);
-
-        // Create shared bus
-        let bus_manager = shared_bus_rtic::new!(i2c, SharedBusType);
 
         // LED and button for debugging purposes
         let led = gpioc.pc13.into_push_pull_output();
@@ -186,9 +187,17 @@ const APP: () = {
             gpioa.pa2.into_pull_up_input().downgrade(),
         );
 
+        // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
+        let scl = gpiob.pb6.into_alternate_af4().set_open_drain();
+        let sda = gpiob.pb7.into_alternate_af4().set_open_drain();
+        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), clocks);
+
+        // Create shared bus
+        let bus_manager = shared_bus_rtic::new!(i2c, SharedBusType);
+
         rprintln!("I2C and GPIO setup done");
 
-        // VEML7700 ambientlight sensor
+        // VEML7700 ambient light sensor
         //
         // Note: After enabling the sensor, a startup time of 4 ms plus the
         // integration time must be awaited.
@@ -276,6 +285,14 @@ const APP: () = {
             // No data received
             _ => {}
         }
+    }
+
+    // RTIC requires that free interrupts are declared in an extern block when
+    // using software tasks; these free interrupts will be used to dispatch the
+    // software tasks.
+    extern "C" {
+        fn SPI1();
+        fn SPI2();
     }
 };
 
