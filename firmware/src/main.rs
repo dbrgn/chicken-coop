@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![cfg(target_arch = "arm")] // Main module will only build for ARM. For testing, use lib.rs.
 
 use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc};
 use heapless::spsc::Queue;

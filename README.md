@@ -20,6 +20,8 @@ A combination of RTC and ambient light sensor is used:
 - If the `CLOSING_LUX_THRESHOLD` is not reached at `LATEST_CLOSING_TIME`, the
   door will close anyways.
 
+To detect an open or closed door, reed switches are used.
+
 ### State machine
 
                ┌───────┐
@@ -41,6 +43,12 @@ A combination of RTC and ambient light sensor is used:
 - `PreOpening`: Waiting for either `OPENING_LUX_THRESHOLD` or `LATEST_OPENING_TIME`
 - `Open`: Waiting for `EARLIEST_CLOSING_TIME`
 - `PreClosing`: Waiting for `CLOSING_LUX_THRESHOLD` or `LATEST_CLOSING_TIME`
+
+## Testing
+
+To run unit tests:
+
+    cargo test --target x86_64-unknown-linux-gnu --tests
 
 ## Flashing
 
