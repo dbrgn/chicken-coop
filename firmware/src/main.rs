@@ -24,18 +24,20 @@ use usb_device::{
 use usbd_serial::{SerialPort, USB_CLASS_CDC};
 use veml6030::Veml6030;
 
+mod ambient_light;
 mod door_sensors;
 mod motor;
 mod states;
 
 use crate::{
+    ambient_light::AmbientLight,
     door_sensors::{DoorSensors, DoorStatus},
     motor::Motor,
     states::State,
 };
 
-// VEML ambient light sensor integration time
-const VEML_INTEGRATION_TIME: veml6030::IntegrationTime = veml6030::IntegrationTime::Ms100;
+const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0;
+const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0;
 
 type SharedBusType = I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
 
@@ -110,6 +112,9 @@ const APP: () = {
 
         // Door sensors
         door_sensors: DoorSensors,
+
+        // Ambient light state tracker
+        ambient_light: AmbientLight,
 
         // Motor control
         motor: Motor,
@@ -204,11 +209,13 @@ const APP: () = {
         //
         // TODO: Timeout!
         let mut lightsensor = Veml6030::new(bus_manager.acquire(), veml6030::SlaveAddr::default());
+        let ambient_light =
+            AmbientLight::new(AMBIENT_LIGHT_THRESHOLD_LOW, AMBIENT_LIGHT_THRESHOLD_HIGH);
         if let Err(e) = lightsensor.set_gain(veml6030::Gain::OneQuarter) {
             rprintln!("Could not set VEML gain: {:?}", e);
             Error::VemlGainSetFailed.log(&mut errors);
         }
-        if let Err(e) = lightsensor.set_integration_time(VEML_INTEGRATION_TIME) {
+        if let Err(e) = lightsensor.set_integration_time(veml6030::IntegrationTime::Ms800) {
             rprintln!("Could not set VEML integration time: {:?}", e);
             Error::VemlIntegrationTimeSetFailed.log(&mut errors);
         }
@@ -243,6 +250,7 @@ const APP: () = {
             errors,
             timer,
             door_sensors,
+            ambient_light,
             motor,
             usb_dev,
             serial,
