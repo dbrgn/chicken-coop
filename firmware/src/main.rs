@@ -23,9 +23,10 @@ use usb_device::{
 use usbd_serial::{SerialPort, USB_CLASS_CDC};
 use veml6030::Veml6030;
 
+mod door_sensors;
 mod motor;
 
-use crate::motor::Motor;
+use crate::{door_sensors::{DoorSensors, DoorStatus}, motor::Motor};
 
 // VEML ambient light sensor integration time
 const VEML_INTEGRATION_TIME: veml6030::IntegrationTime = veml6030::IntegrationTime::Ms100;
@@ -96,6 +97,9 @@ const APP: () = {
 
         // Periodic timer
         timer: Timer<pac::TIM2>,
+
+        // Door sensors
+        door_sensors: DoorSensors,
 
         // Motor control
         motor: Motor,
@@ -175,6 +179,12 @@ const APP: () = {
         let led = gpioc.pc13.into_push_pull_output();
         let mut button = gpioa.pa0.into_pull_up_input();
 
+        // Reed switches (A1 = opened, A2 = closed)
+        let door_sensors = DoorSensors::new(
+            gpioa.pa1.into_pull_up_input().downgrade(),
+            gpioa.pa2.into_pull_up_input().downgrade(),
+        );
+
         rprintln!("I2C and GPIO setup done");
 
         // VEML7700 ambientlight sensor
@@ -222,6 +232,7 @@ const APP: () = {
             led,
             errors,
             timer,
+            door_sensors,
             motor,
             usb_dev,
             serial,
@@ -244,7 +255,7 @@ const APP: () = {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, resources = [usb_dev, serial, i2c, errors, motor])]
+    #[task(binds=OTG_FS, resources = [usb_dev, serial, i2c, errors, door_sensors, motor])]
     fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
         if !ctx.resources.usb_dev.poll(&mut [ctx.resources.serial]) {
@@ -279,6 +290,13 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             serial.write(b"  _|_\n").ok();
             serial.write(b"\n").ok();
             serial.write(b"Status:\n\n").ok();
+            serial.write(b" Door status: ").ok();
+            match ctx.resources.door_sensors.query() {
+                DoorStatus::Open => serial.write(b"open\n").ok(),
+                DoorStatus::Closed => serial.write(b"closed\n").ok(),
+                DoorStatus::Unknown => serial.write(b"unknown\n").ok(),
+                DoorStatus::Error => serial.write(b"error\n").ok(),
+            };
             serial.write(b" RTC running: ").ok();
             match ctx.resources.i2c.rtc.running() {
                 Ok(true) => serial.write(b"yes\n").ok(),
