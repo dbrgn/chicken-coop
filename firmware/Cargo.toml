@@ -5,7 +5,7 @@ authors = ["Danilo Bargen <mail@dbrgn.ch>"]
 edition = "2018"
 
 [dependencies]
-ds323x = "0.3"
+ds323x = "0.4"
 embedded-hal = "0.2"
 nb = "1"
 cortex-m = "0.7"

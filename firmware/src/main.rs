@@ -341,6 +341,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 }
                 Err(ds323x::Error::Pin(_)) => serial.write(b"pin error\n").ok(),
                 Err(ds323x::Error::InvalidInputData) => serial.write(b"data error\n").ok(),
+                Err(ds323x::Error::InvalidDeviceState) => serial.write(b"invalid device state\n").ok(),
             };
             serial.write(b"\n").ok();
             serial.write(b"Logged errors:\n\n").ok();
