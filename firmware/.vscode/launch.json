@@ -1,0 +1,38 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+
+    "configurations": [
+        // Launch + Debug with probe-rs-debugger
+        {
+            "type": "probe-rs-debug",
+            "request": "launch",
+            "name": "Launch + Debug",
+            "cwd": "${workspaceFolder}",
+            "program_binary": "./target/thumbv7em-none-eabihf/debug/firmware",
+            "chip": "STM32F411CEUx",
+            "connect_under_reset": true,
+            "runtimeExecutable": "~/.cargo/bin/probe-rs-debugger",
+            "runtimeArgs": ["debug", "--dap"],
+            "core_index": 0,
+            "flashing_enabled": true,
+            "reset_after_flashing": true,
+            "halt_after_reset": true,
+            "console_log_level": "Info", // Error, Warn, Info, Debug
+        },
+        // Attach + Debug with probe-rs-debugger
+        {
+            "type": "probe-rs-debug",
+            "request": "attach",
+            "name": "Attach + Debug",
+            "cwd": "${workspaceFolder}",
+            "program_binary": "./target/thumbv7em-none-eabihf/debug/firmware",
+            "chip": "STM32F411CEUx",
+            "runtimeExecutable": "~/.cargo/bin/probe-rs-debugger",
+            "core_index": 0,
+            "console_log_level": "Info", // Error, Warn, Info, Debug
+        }
+    ]
+}
