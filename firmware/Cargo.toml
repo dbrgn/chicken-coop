@@ -23,3 +23,6 @@ veml6030 = "0.1.2"
 [dependencies.stm32f4xx-hal]
 version = "0.10.1"
 features = ["rt", "stm32f411", "usb_fs"]
+
+[profile.release]
+debug = true
