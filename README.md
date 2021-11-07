@@ -54,3 +54,11 @@ To run unit tests:
 
     cd firmware
     cargo flash --connect-under-reset --chip STM32F411CEUx --release
+
+## Serial Terminal
+
+To open a serial connection:
+
+    python -m serial.tools.miniterm /dev/ttyACM0 9600
+
+Then type `?` to see the help.
