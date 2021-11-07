@@ -39,6 +39,9 @@ use crate::{
 const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0;
 const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0;
 
+const SERIAL_READ_BUFFER_BYTES: usize = 256;
+const SERIAL_WRITE_BUFFER_BYTES: usize = 512;
+
 type SharedBusType = I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
 
 pub struct SharedBusResources<T: 'static> {
@@ -82,8 +85,16 @@ impl Error {
     }
 }
 
+/// Type alias for the serial port type
+type SerialPortType = SerialPort<
+    'static,
+    UsbBusType,
+    [u8; SERIAL_READ_BUFFER_BYTES],
+    [u8; SERIAL_WRITE_BUFFER_BYTES],
+>;
+
 /// Wrapper for a `SerialPort` that supports ufmt
-struct SerialWriter<'a>(&'a mut SerialPort<'static, UsbBusType>);
+struct SerialWriter<'a>(&'a mut SerialPortType);
 
 impl<'a> ufmt::uWrite for SerialWriter<'a> {
     type Error = Error;
@@ -123,7 +134,7 @@ const APP: () = {
         usb_dev: UsbDevice<'static, UsbBusType>,
 
         // Serial
-        serial: SerialPort<'static, UsbBusType>,
+        serial: SerialPortType,
 
         // I²C devices
         i2c: SharedBusResources<SharedBusType>,
@@ -168,7 +179,11 @@ const APP: () = {
             hclk: clocks.hclk(),
         };
         USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
-        let serial = usbd_serial::SerialPort::new(USB_BUS.as_ref().unwrap());
+        let serial = usbd_serial::SerialPort::new_with_store(
+            USB_BUS.as_ref().unwrap(),
+            [0u8; SERIAL_READ_BUFFER_BYTES],
+            [0u8; SERIAL_WRITE_BUFFER_BYTES],
+        );
         let usb_dev = UsbDeviceBuilder::new(USB_BUS.as_ref().unwrap(), UsbVidPid(0x16c0, 0x27dd))
             .manufacturer("Bargen Software")
             .product("ChickenDoor")
