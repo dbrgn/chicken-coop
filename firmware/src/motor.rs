@@ -1,26 +1,23 @@
-use stm32f4xx_hal::{
-    gpio::{gpioa::PA, Output, PushPull},
-    prelude::*,
-};
+use stm32f4xx_hal::gpio::{EPin, Output, PushPull};
 
 pub struct Motor {
-    pub forwards: PA<Output<PushPull>>,
-    pub backwards: PA<Output<PushPull>>,
+    pub forwards: EPin<Output<PushPull>>,
+    pub backwards: EPin<Output<PushPull>>,
 }
 
 impl Motor {
     pub fn forwards(&mut self) {
-        self.backwards.set_low().unwrap();
-        self.forwards.set_high().unwrap();
+        self.backwards.set_low();
+        self.forwards.set_high();
     }
 
     pub fn backwards(&mut self) {
-        self.forwards.set_low().unwrap();
-        self.backwards.set_high().unwrap();
+        self.forwards.set_low();
+        self.backwards.set_high();
     }
 
     pub fn off(&mut self) {
-        self.forwards.set_low().unwrap();
-        self.backwards.set_low().unwrap();
+        self.forwards.set_low();
+        self.backwards.set_low();
     }
 }

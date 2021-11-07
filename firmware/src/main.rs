@@ -15,7 +15,7 @@ use stm32f4xx_hal::{
     otg_fs::{UsbBus, UsbBusType, USB},
     pac,
     prelude::*,
-    timer::{Event, Timer},
+    timer::{CountDownTimer, Event, Timer},
 };
 use usb_device::{
     bus::UsbBusAllocator,
@@ -108,7 +108,7 @@ const APP: () = {
         errors: Queue<Error, 16>, // Allow logging up to 16 errors
 
         // Periodic timer
-        timer: Timer<pac::TIM2>,
+        timer: CountDownTimer<pac::TIM2>,
 
         // Door sensors
         door_sensors: DoorSensors,
@@ -163,8 +163,8 @@ const APP: () = {
             usb_global: ctx.device.OTG_FS_GLOBAL,
             usb_device: ctx.device.OTG_FS_DEVICE,
             usb_pwrclk: ctx.device.OTG_FS_PWRCLK,
-            pin_dm: gpioa.pa11.into_alternate_af10(),
-            pin_dp: gpioa.pa12.into_alternate_af10(),
+            pin_dm: gpioa.pa11.into_alternate::<10>(),
+            pin_dp: gpioa.pa12.into_alternate::<10>(),
             hclk: clocks.hclk(),
         };
         USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
@@ -178,23 +178,24 @@ const APP: () = {
 
         // Motor driver
         let motor = Motor {
-            forwards: gpioa.pa8.into_push_pull_output().downgrade(),
-            backwards: gpioa.pa9.into_push_pull_output().downgrade(),
+            forwards: gpioa.pa8.into_push_pull_output().erase(),
+            backwards: gpioa.pa9.into_push_pull_output().erase(),
         };
 
         // LED and button for debugging purposes
-        let led = gpioc.pc13.into_push_pull_output();
+        let mut led = gpioc.pc13.into_push_pull_output();
         let mut button = gpioa.pa0.into_pull_up_input();
+        led.set_high();
 
         // Reed switches (A1 = opened, A2 = closed)
         let door_sensors = DoorSensors::new(
-            gpioa.pa1.into_pull_up_input().downgrade(),
-            gpioa.pa2.into_pull_up_input().downgrade(),
+            gpioa.pa1.into_pull_up_input().erase(),
+            gpioa.pa2.into_pull_up_input().erase(),
         );
 
         // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
-        let scl = gpiob.pb6.into_alternate_af4().set_open_drain();
-        let sda = gpiob.pb7.into_alternate_af4().set_open_drain();
+        let scl = gpiob.pb6.into_alternate::<4>().set_open_drain();
+        let sda = gpiob.pb7.into_alternate::<4>().set_open_drain();
         let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), clocks);
 
         // Create shared bus
@@ -230,7 +231,7 @@ const APP: () = {
         let rtc = Ds323x::new_ds3231(bus_manager.acquire());
 
         // Periodic timer
-        let mut timer = Timer::tim2(ctx.device.TIM2, 1.hz(), clocks);
+        let mut timer = Timer::new(ctx.device.TIM2, &clocks).start_count_down(1.hz());
         timer.listen(Event::TimeOut);
         unsafe {
             // Enable TIM2 interrupt in NVIC
@@ -240,7 +241,7 @@ const APP: () = {
         // Wire up button interrupt
         button.make_interrupt_source(&mut syscfg);
         button.enable_interrupt(&mut ctx.device.EXTI);
-        button.trigger_on_edge(&mut ctx.device.EXTI, Edge::RISING);
+        button.trigger_on_edge(&mut ctx.device.EXTI, Edge::Rising);
 
         rprintln!("Done initializing");
 
@@ -262,13 +263,13 @@ const APP: () = {
     fn button_click(ctx: button_click::Context) {
         rprintln!("Button pressed");
         ctx.resources.button.clear_interrupt_pending_bit();
-        ctx.resources.led.toggle().unwrap();
+        ctx.resources.led.toggle();
     }
 
     /// This task runs every second.
     #[task(binds = TIM2, resources = [led, timer])]
     fn every_second(ctx: every_second::Context) {
-        ctx.resources.led.toggle().unwrap();
+        ctx.resources.led.toggle();
         ctx.resources.timer.clear_interrupt(Event::TimeOut);
     }
 

@@ -1,13 +1,13 @@
 //! The door sensors that can detect whether the door is open or closed.
 
 use stm32f4xx_hal::{
-    gpio::{gpioa, Input, PullUp},
+    gpio::{EPin, Input, PullUp},
     prelude::*,
 };
 
 pub struct DoorSensors {
-    switch_open: gpioa::PA<Input<PullUp>>,
-    switch_closed: gpioa::PA<Input<PullUp>>,
+    switch_open: EPin<Input<PullUp>>,
+    switch_closed: EPin<Input<PullUp>>,
 }
 
 pub enum DoorStatus {
@@ -18,10 +18,7 @@ pub enum DoorStatus {
 }
 
 impl DoorSensors {
-    pub fn new(
-        switch_open: gpioa::PA<Input<PullUp>>,
-        switch_closed: gpioa::PA<Input<PullUp>>,
-    ) -> Self {
+    pub fn new(switch_open: EPin<Input<PullUp>>, switch_closed: EPin<Input<PullUp>>) -> Self {
         Self {
             switch_open,
             switch_closed,
@@ -35,11 +32,10 @@ impl DoorSensors {
         let open = self.switch_open.is_low();
         let closed = self.switch_closed.is_low();
         match (open, closed) {
-            (Ok(true), Ok(false)) => DoorStatus::Open,
-            (Ok(false), Ok(true)) => DoorStatus::Closed,
-            (Ok(false), Ok(false)) => DoorStatus::Unknown,
-            (Ok(true), Ok(true)) => DoorStatus::Error,
-            (Err(_), _) | (_, Err(_)) => DoorStatus::Error,
+            (true, false) => DoorStatus::Open,
+            (false, true) => DoorStatus::Closed,
+            (false, false) => DoorStatus::Unknown,
+            (true, true) => DoorStatus::Error,
         }
     }
 }
