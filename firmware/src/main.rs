@@ -2,7 +2,7 @@
 #![no_main]
 #![cfg(target_arch = "arm")] // Main module will only build for ARM. For testing, use lib.rs.
 
-use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc};
+use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc, Timelike};
 use heapless::spsc::Queue;
 use panic_halt as _;
 use rtic::app;
@@ -60,6 +60,7 @@ pub enum Error {
     VemlEnableFailed,
     UfmtSerialWriteError,
     MotorGpioWriteError,
+    RtcReadTimeError,
 }
 
 impl Error {
@@ -81,6 +82,7 @@ impl Error {
             Self::VemlEnableFailed => b"VEML7700: Enabling failed",
             Self::UfmtSerialWriteError => b"Write serial log using ufmt failed",
             Self::MotorGpioWriteError => b"Motor GPIO write error",
+            Self::RtcReadTimeError => b"RTC: Reading time failed",
         }
     }
 }
@@ -395,19 +397,13 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 serial.write(b"Could not measure brightness level\n").ok();
             }
         },
-        b'c' | b'C' => {
-            match (
-                ctx.resources.i2c.rtc.get_hours(),
-                ctx.resources.i2c.rtc.get_minutes(),
-            ) {
-                (Ok(ds323x::Hours::H24(h)), Ok(m)) => print_time(h, m, serial),
-                (Ok(ds323x::Hours::AM(h)), Ok(m)) => print_time(h, m, serial),
-                (Ok(ds323x::Hours::PM(h)), Ok(m)) => print_time(h + 12, m, serial),
-                _ => {
-                    serial.write(b"Could not determine time\n").ok();
-                }
+        b'c' | b'C' => match ctx.resources.i2c.rtc.get_time() {
+            Ok(time) => print_time(time.hour(), time.minute(), serial),
+            Err(_) => {
+                Error::RtcReadTimeError.log(&mut ctx.resources.errors);
+                serial.write(b"Could not determine time\n").ok();
             }
-        }
+        },
         b't' | b'T' => match ctx.resources.i2c.rtc.get_temperature() {
             Ok(temp) => {
                 ufmt::uwriteln!(
@@ -438,7 +434,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
 }
 
 /// Print the 24h time with proper 0-prefixing.
-fn print_time(hours: u8, minutes: u8, serial: &mut SerialPortType) {
+fn print_time(hours: u32, minutes: u32, serial: &mut SerialPortType) {
     ufmt::uwrite!(SerialWriter(serial), "Current time: ").ok();
     if hours < 10 {
         ufmt::uwrite!(SerialWriter(serial), "0").ok();
