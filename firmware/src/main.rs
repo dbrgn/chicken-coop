@@ -122,6 +122,7 @@ const APP: () = {
 
         // Periodic timer
         timer: CountDownTimer<pac::TIM2>,
+        timer_counter: u8,
 
         // Door sensors
         door_sensors: DoorSensors,
@@ -267,6 +268,7 @@ const APP: () = {
             led,
             errors,
             timer,
+            timer_counter: 10,
             door_sensors,
             ambient_light,
             motor,
@@ -284,9 +286,21 @@ const APP: () = {
     }
 
     /// This task runs every second.
-    #[task(binds = TIM2, resources = [led, timer])]
+    #[task(binds = TIM2, resources = [led, timer, timer_counter])]
     fn every_second(ctx: every_second::Context) {
+        // Toggle LED
         ctx.resources.led.toggle();
+
+        // Decrement timer counter to work around the fact that the HAL
+        // currently doesn't support wait times >1s (because sleeping is
+        // specified using a frequency).
+        *ctx.resources.timer_counter -= 1;
+        if *ctx.resources.timer_counter == 0 {
+            *ctx.resources.timer_counter = 10;
+            // TODO: Spawn periodic check task
+        }
+
+        // Clear interrupt
         ctx.resources.timer.clear_interrupt(Event::TimeOut);
     }
 
