@@ -14,7 +14,7 @@
             "program_binary": "./target/thumbv7em-none-eabihf/debug/firmware",
             "chip": "STM32F411CEUx",
             "connect_under_reset": true,
-            "runtimeExecutable": "~/.cargo/bin/probe-rs-debugger",
+            "runtimeExecutable": "${env:HOME}/.cargo/bin/probe-rs-debugger",
             "runtimeArgs": ["debug", "--dap"],
             "core_index": 0,
             "flashing_enabled": true,
@@ -30,7 +30,7 @@
             "cwd": "${workspaceFolder}",
             "program_binary": "./target/thumbv7em-none-eabihf/debug/firmware",
             "chip": "STM32F411CEUx",
-            "runtimeExecutable": "~/.cargo/bin/probe-rs-debugger",
+            "runtimeExecutable": "${env:HOME}/.cargo/bin/probe-rs-debugger",
             "core_index": 0,
             "console_log_level": "Info", // Error, Warn, Info, Debug
         }
