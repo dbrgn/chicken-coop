@@ -400,28 +400,9 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 ctx.resources.i2c.rtc.get_hours(),
                 ctx.resources.i2c.rtc.get_minutes(),
             ) {
-                (Ok(ds323x::Hours::AM(hours)), Ok(minutes)) => {
-                    ufmt::uwriteln!(
-                        SerialWriter(serial),
-                        "Current time: {}:{} AM",
-                        hours,
-                        minutes
-                    )
-                    .ok();
-                }
-                (Ok(ds323x::Hours::PM(hours)), Ok(minutes)) => {
-                    ufmt::uwriteln!(
-                        SerialWriter(serial),
-                        "Current time: {}:{} PM",
-                        hours,
-                        minutes
-                    )
-                    .ok();
-                }
-                (Ok(ds323x::Hours::H24(hours)), Ok(minutes)) => {
-                    ufmt::uwriteln!(SerialWriter(serial), "Current time: {}:{}", hours, minutes)
-                        .ok();
-                }
+                (Ok(ds323x::Hours::H24(h)), Ok(m)) => print_time(h, m, serial),
+                (Ok(ds323x::Hours::AM(h)), Ok(m)) => print_time(h, m, serial),
+                (Ok(ds323x::Hours::PM(h)), Ok(m)) => print_time(h + 12, m, serial),
                 _ => {
                     serial.write(b"Could not determine time\n").ok();
                 }
@@ -454,4 +435,17 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
         }
         _ => { /* Unknown command, ignore */ }
     }
+}
+
+/// Print the 24h time with proper 0-prefixing.
+fn print_time(hours: u8, minutes: u8, serial: &mut SerialPortType) {
+    ufmt::uwrite!(SerialWriter(serial), "Current time: ").ok();
+    if hours < 10 {
+        ufmt::uwrite!(SerialWriter(serial), "0").ok();
+    }
+    ufmt::uwrite!(SerialWriter(serial), "{}:", hours).ok();
+    if minutes < 10 {
+        ufmt::uwrite!(SerialWriter(serial), "0").ok();
+    }
+    ufmt::uwrite!(SerialWriter(serial), "{}\n", minutes).ok();
 }
