@@ -286,7 +286,7 @@ const APP: () = {
     }
 
     /// This task runs every second.
-    #[task(binds = TIM2, resources = [led, timer, timer_counter])]
+    #[task(binds = TIM2, resources = [led, timer, timer_counter], spawn = [update])]
     fn every_second(ctx: every_second::Context) {
         // Toggle LED
         ctx.resources.led.toggle();
@@ -297,11 +297,39 @@ const APP: () = {
         *ctx.resources.timer_counter -= 1;
         if *ctx.resources.timer_counter == 0 {
             *ctx.resources.timer_counter = 10;
-            // TODO: Spawn periodic check task
+
+            // Spawn update task
+            ctx.spawn.update().unwrap();
         }
 
         // Clear interrupt
         ctx.resources.timer.clear_interrupt(Event::TimeOut);
+    }
+
+    /// This task is run every 10s.
+    #[task(resources = [i2c, serial, errors])]
+    fn update(mut ctx: update::Context) {
+        // Error collector
+        let errors = &mut ctx.resources.errors;
+
+        // Resource aliases
+        let serial = &mut ctx.resources.serial;
+        let rtc = &mut ctx.resources.i2c.rtc;
+
+        // Get current time
+        let time = match rtc.get_time() {
+            Ok(time) => time,
+            Err(_) => {
+                Error::RtcReadTimeError.log(errors);
+                serial.write(b":: Read time error\n").ok();
+                return;
+            }
+        };
+
+        // Log update to serial
+        serial.write(b":: ").ok();
+        print_time(time.hour(), time.minute(), serial);
+        serial.write(b" update\n").ok();
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
@@ -412,7 +440,11 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             }
         },
         b'c' | b'C' => match ctx.resources.i2c.rtc.get_time() {
-            Ok(time) => print_time(time.hour(), time.minute(), serial),
+            Ok(time) => {
+                serial.write(b"Current time: ").ok();
+                print_time(time.hour(), time.minute(), serial);
+                serial.write(b"\n").ok();
+            }
             Err(_) => {
                 Error::RtcReadTimeError.log(&mut ctx.resources.errors);
                 serial.write(b"Could not determine time\n").ok();
@@ -449,7 +481,6 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
 
 /// Print the 24h time with proper 0-prefixing.
 fn print_time(hours: u32, minutes: u32, serial: &mut SerialPortType) {
-    ufmt::uwrite!(SerialWriter(serial), "Current time: ").ok();
     if hours < 10 {
         ufmt::uwrite!(SerialWriter(serial), "0").ok();
     }
@@ -457,5 +488,5 @@ fn print_time(hours: u32, minutes: u32, serial: &mut SerialPortType) {
     if minutes < 10 {
         ufmt::uwrite!(SerialWriter(serial), "0").ok();
     }
-    ufmt::uwrite!(SerialWriter(serial), "{}\n", minutes).ok();
+    ufmt::uwrite!(SerialWriter(serial), "{}", minutes).ok();
 }
