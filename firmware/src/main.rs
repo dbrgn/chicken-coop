@@ -328,7 +328,7 @@ const APP: () = {
 
         // Log update to serial
         serial.write(b":: ").ok();
-        print_time(time.hour(), time.minute(), serial);
+        print_time(&time, serial);
         serial.write(b" update\n").ok();
     }
 
@@ -442,7 +442,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
         b'c' | b'C' => match ctx.resources.i2c.rtc.get_time() {
             Ok(time) => {
                 serial.write(b"Current time: ").ok();
-                print_time(time.hour(), time.minute(), serial);
+                print_time(&time, serial);
                 serial.write(b"\n").ok();
             }
             Err(_) => {
@@ -480,13 +480,17 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
 }
 
 /// Print the 24h time with proper 0-prefixing.
-fn print_time(hours: u32, minutes: u32, serial: &mut SerialPortType) {
-    if hours < 10 {
-        ufmt::uwrite!(SerialWriter(serial), "0").ok();
+fn print_time(time: &impl Timelike, serial: &mut SerialPortType) {
+    fn print_part(value: u32, serial: &mut SerialPortType) {
+        if value < 10 {
+            ufmt::uwrite!(SerialWriter(serial), "0").ok();
+        }
+        ufmt::uwrite!(SerialWriter(serial), "{}", value).ok();
     }
-    ufmt::uwrite!(SerialWriter(serial), "{}:", hours).ok();
-    if minutes < 10 {
-        ufmt::uwrite!(SerialWriter(serial), "0").ok();
-    }
-    ufmt::uwrite!(SerialWriter(serial), "{}", minutes).ok();
+
+    print_part(time.hour(), serial);
+    serial.write(b":").ok();
+    print_part(time.minute(), serial);
+    serial.write(b":").ok();
+    print_part(time.second(), serial);
 }
