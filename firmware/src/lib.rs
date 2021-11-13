@@ -3,4 +3,6 @@
 
 mod ambient_light;
 mod door_sensors;
+mod errors;
+mod serial;
 mod states;

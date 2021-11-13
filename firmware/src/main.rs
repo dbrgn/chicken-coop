@@ -26,21 +26,22 @@ use veml6030::Veml6030;
 
 mod ambient_light;
 mod door_sensors;
+mod errors;
 mod motor;
+mod serial;
 mod states;
 
 use crate::{
     ambient_light::AmbientLight,
     door_sensors::{DoorSensors, DoorStatus},
+    errors::Error,
     motor::Motor,
+    serial::{SerialPortType, SerialWriter},
     states::State,
 };
 
 const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0;
 const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0;
-
-const SERIAL_READ_BUFFER_BYTES: usize = 256;
-const SERIAL_WRITE_BUFFER_BYTES: usize = 512;
 
 type SharedBusType = I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
 
@@ -50,62 +51,6 @@ pub struct SharedBusResources<T: 'static> {
 
     // Real-time clock (DS3231)
     rtc: Ds323x<I2cInterface<SharedBus<T>>, DS3231>,
-}
-
-/// All possible error types
-#[derive(PartialEq, Copy, Clone)]
-pub enum Error {
-    VemlGainSetFailed,
-    VemlIntegrationTimeSetFailed,
-    VemlEnableFailed,
-    UfmtSerialWriteError,
-    MotorGpioWriteError,
-    RtcReadTimeError,
-}
-
-impl Error {
-    fn log<const N: usize>(&self, queue: &mut Queue<Self, N>) {
-        match queue.enqueue(*self) {
-            Ok(()) => { /* Enqueued */ }
-            Err(e) => {
-                // Queue full, drop the oldest value and try again
-                queue.dequeue();
-                queue.enqueue(e).ok();
-            }
-        }
-    }
-
-    fn to_bytes(&self) -> &'static [u8] {
-        match self {
-            Self::VemlGainSetFailed => b"VEML7700: Setting gain failed",
-            Self::VemlIntegrationTimeSetFailed => b"VEML7700: Setting integration time failed",
-            Self::VemlEnableFailed => b"VEML7700: Enabling failed",
-            Self::UfmtSerialWriteError => b"Write serial log using ufmt failed",
-            Self::MotorGpioWriteError => b"Motor GPIO write error",
-            Self::RtcReadTimeError => b"RTC: Reading time failed",
-        }
-    }
-}
-
-/// Type alias for the serial port type
-type SerialPortType = SerialPort<
-    'static,
-    UsbBusType,
-    [u8; SERIAL_READ_BUFFER_BYTES],
-    [u8; SERIAL_WRITE_BUFFER_BYTES],
->;
-
-/// Wrapper for a `SerialPort` that supports ufmt
-struct SerialWriter<'a>(&'a mut SerialPortType);
-
-impl<'a> ufmt::uWrite for SerialWriter<'a> {
-    type Error = Error;
-    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        self.0
-            .write(s.as_bytes())
-            .map(|_| ())
-            .map_err(|_| Error::UfmtSerialWriteError)
-    }
 }
 
 #[app(device = stm32f4xx_hal::stm32, peripherals = true)]
@@ -182,10 +127,10 @@ const APP: () = {
             hclk: clocks.hclk(),
         };
         USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
-        let serial = usbd_serial::SerialPort::new_with_store(
+        let serial = SerialPort::new_with_store(
             USB_BUS.as_ref().unwrap(),
-            [0u8; SERIAL_READ_BUFFER_BYTES],
-            [0u8; SERIAL_WRITE_BUFFER_BYTES],
+            [0u8; serial::SERIAL_READ_BUFFER_BYTES],
+            [0u8; serial::SERIAL_WRITE_BUFFER_BYTES],
         );
         let usb_dev = UsbDeviceBuilder::new(USB_BUS.as_ref().unwrap(), UsbVidPid(0x16c0, 0x27dd))
             .manufacturer("Bargen Software")
