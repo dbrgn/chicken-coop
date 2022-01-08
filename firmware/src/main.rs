@@ -17,6 +17,7 @@ use stm32f4xx_hal::{
     prelude::*,
     timer::{CountDownTimer, Event, Timer},
 };
+use ufmt::{uwrite, uwriteln};
 use usb_device::{
     bus::UsbBusAllocator,
     prelude::{UsbDevice, UsbDeviceBuilder, UsbVidPid},
@@ -40,8 +41,12 @@ use crate::{
     states::State,
 };
 
-const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0;
-const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0;
+const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0; // Close threshold
+const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0; // Open threshold
+const EARLIEST_OPENING_TIME: (u32, u32) = (08, 30);
+const LATEST_OPENING_TIME: (u32, u32) = (09, 30);
+const EARLIEST_CLOSING_TIME: (u32, u32) = (17, 00);
+const LATEST_CLOSING_TIME: (u32, u32) = (22, 00);
 
 type SharedBusType = I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
 
@@ -57,7 +62,6 @@ pub struct SharedBusResources<T: 'static> {
 const APP: () = {
     struct Resources {
         // State machine
-        #[init(State::Initial)]
         state: State,
 
         // Debugging
@@ -127,7 +131,7 @@ const APP: () = {
             hclk: clocks.hclk(),
         };
         USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
-        let serial = SerialPort::new_with_store(
+        let mut serial = SerialPort::new_with_store(
             USB_BUS.as_ref().unwrap(),
             [0u8; serial::SERIAL_READ_BUFFER_BYTES],
             [0u8; serial::SERIAL_WRITE_BUFFER_BYTES],
@@ -206,9 +210,13 @@ const APP: () = {
         button.enable_interrupt(&mut ctx.device.EXTI);
         button.trigger_on_edge(&mut ctx.device.EXTI, Edge::Rising);
 
+        // Initial state
+        let state = State::init(door_sensors.query(), &mut serial);
+
         rprintln!("Done initializing");
 
         init::LateResources {
+            state,
             button,
             led,
             errors,
@@ -252,13 +260,14 @@ const APP: () = {
     }
 
     /// This task is run every 10s.
-    #[task(resources = [i2c, serial, errors])]
+    #[task(resources = [state, ambient_light, i2c, serial, errors])]
     fn update(mut ctx: update::Context) {
         // Error collector
         let errors = &mut ctx.resources.errors;
 
         // Resource aliases
         let serial = &mut ctx.resources.serial;
+        let state = &mut ctx.resources.state;
         let rtc = &mut ctx.resources.i2c.rtc;
 
         // Get current time
@@ -274,7 +283,98 @@ const APP: () = {
         // Log update to serial
         serial.write(b":: ").ok();
         print_time(&time, serial);
-        serial.write(b" update\n").ok();
+        uwrite!(SerialWriter(serial), " Update [State={:?}]\n", *state).ok();
+
+        // Get current timestamp.
+        // For easier calculations, use day-minutes as timestamps
+        let timestamp = time.hour() * 60 + time.minute();
+        let earliest_opening_timestamp = EARLIEST_OPENING_TIME.0 * 60 + EARLIEST_OPENING_TIME.1;
+        let latest_opening_timestamp = LATEST_OPENING_TIME.0 * 60 + LATEST_OPENING_TIME.1;
+        let earliest_closing_timestamp = EARLIEST_CLOSING_TIME.0 * 60 + EARLIEST_CLOSING_TIME.1;
+        let latest_closing_timestamp = LATEST_CLOSING_TIME.0 * 60 + LATEST_CLOSING_TIME.1;
+
+        // Read lux if in Pre* state
+        let brightness_opt = match state {
+            State::PreOpening | State::PreClosing => {
+                match ctx.resources.i2c.lightsensor.read_lux() {
+                    Ok(lux) => {
+                        uwriteln!(
+                            SerialWriter(serial),
+                            "Current brightness level: {} lux",
+                            lux as usize
+                        )
+                        .ok();
+                        Some(ctx.resources.ambient_light.update(lux))
+                    }
+                    Err(e) => {
+                        let reason = match e {
+                            veml6030::Error::I2C(_) => "I2C bus error",
+                        };
+                        uwriteln!(SerialWriter(serial), "Could not read lux: {}", reason).ok();
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+
+        // Act depending on state
+        let new_state = match state {
+            State::Closed => {
+                if timestamp >= earliest_opening_timestamp {
+                    Some(State::PreOpening)
+                } else {
+                    None
+                }
+            }
+            State::PreOpening => {
+                // Read brightness
+                if brightness_opt
+                    .map(|brightness| brightness.is_day())
+                    .unwrap_or(false)
+                {
+                    uwriteln!(SerialWriter(serial), "Daylight level reached, opening",).ok();
+                    Some(State::Open)
+                } else if timestamp > latest_opening_timestamp {
+                    // If brightness couldn't be read, or if latest opening time is reached, open
+                    Some(State::Open)
+                } else {
+                    None
+                }
+            }
+            State::Open => {
+                if timestamp >= earliest_closing_timestamp {
+                    Some(State::PreClosing)
+                } else {
+                    None
+                }
+            }
+            State::PreClosing => {
+                // Read brightness
+                if brightness_opt
+                    .map(|brightness| brightness.is_night())
+                    .unwrap_or(false)
+                {
+                    uwriteln!(SerialWriter(serial), "Nighttime level reached, closing",).ok();
+                    Some(State::Closed)
+                } else if timestamp > latest_closing_timestamp {
+                    // If brightness couldn't be read, or if latest closing time is reached, close
+                    Some(State::Closed)
+                } else {
+                    None
+                }
+            }
+            State::Error => {
+                // TODO: Indicate error state somehow
+                // TODO: Try to recover
+                None
+            }
+        };
+
+        if let Some(new_state) = new_state {
+            state.transition(new_state, serial);
+            // TODO: Side effect
+        }
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
@@ -373,7 +473,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
         }
         b'l' | b'L' => match ctx.resources.i2c.lightsensor.read_lux() {
             Ok(lux) => {
-                ufmt::uwriteln!(
+                uwriteln!(
                     SerialWriter(serial),
                     "Current brightness level: {} lux",
                     lux as usize
@@ -397,7 +497,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
         },
         b't' | b'T' => match ctx.resources.i2c.rtc.get_temperature() {
             Ok(temp) => {
-                ufmt::uwriteln!(
+                uwriteln!(
                     SerialWriter(serial),
                     "Current temperature: {}",
                     temp as usize
@@ -428,9 +528,9 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
 fn print_time(time: &impl Timelike, serial: &mut SerialPortType) {
     fn print_part(value: u32, serial: &mut SerialPortType) {
         if value < 10 {
-            ufmt::uwrite!(SerialWriter(serial), "0").ok();
+            uwrite!(SerialWriter(serial), "0").ok();
         }
-        ufmt::uwrite!(SerialWriter(serial), "{}", value).ok();
+        uwrite!(SerialWriter(serial), "{}", value).ok();
     }
 
     print_part(time.hour(), serial);

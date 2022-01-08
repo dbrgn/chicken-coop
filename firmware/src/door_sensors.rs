@@ -1,9 +1,6 @@
 //! The door sensors that can detect whether the door is open or closed.
 
-use stm32f4xx_hal::{
-    gpio::{EPin, Input, PullUp},
-    prelude::*,
-};
+use stm32f4xx_hal::gpio::{EPin, Input, PullUp};
 
 pub struct DoorSensors {
     switch_open: EPin<Input<PullUp>>,

@@ -24,25 +24,27 @@ To detect an open or closed door, reed switches are used.
 
 ### State machine
 
-               ┌───────┐
-    ┌─────┬────┤Initial├──────┬──────┐
-    │     │    └───────┘      │      │
-    │     ▼                   ▼      │
-    │  ┌──────┐       ┌──────────┐   │
-    │  │Closed├──────►│PreOpening│   │
-    │  └──────┘       └───────┬──┘   │
-    │     ▲                   │      │
-    │     │                   ▼      │
-    │  ┌──┴───────┐         ┌────┐   │
-    └─►│PreClosing│◄────────┤Open│◄──┘
-       └──────────┘         └────┘
+    ┌───────┐                         ┌─────┐
+    │Initial├────────────────────┐    │Error│
+    └───────┘                    │    └─────┘
+       │                         │
+       ▼                         │
+    ┌──────┐     ┌──────────┐    │
+    │Closed├────►│PreOpening│    │
+    └──────┘     └───────┬──┘    │
+       ▲                 │       │
+       │                 ▼       │
+    ┌──┴───────┐       ┌────┐    │
+    │PreClosing│◄──────┤Open│◄───┘
+    └──────────┘       └────┘
 
 - `Initial`: The state when turned on. The controller will transition to the
-  appropriate state depending on the time.
+  "Open" or "Closed" state depending on the sensor readings.
 - `Closed`: Waiting for `EARLIEST_OPENING_TIME`
 - `PreOpening`: Waiting for either `OPENING_LUX_THRESHOLD` or `LATEST_OPENING_TIME`
 - `Open`: Waiting for `EARLIEST_CLOSING_TIME`
 - `PreClosing`: Waiting for `CLOSING_LUX_THRESHOLD` or `LATEST_CLOSING_TIME`
+- `Error`: Reachable from any state when something goes wrong (e.g. reading a sensor)
 
 ## Testing
 
