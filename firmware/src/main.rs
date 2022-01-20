@@ -210,8 +210,11 @@ const APP: () = {
         button.enable_interrupt(&mut ctx.device.EXTI);
         button.trigger_on_edge(&mut ctx.device.EXTI, Edge::Rising);
 
+        // Get door status
+        let door_status = door_sensors.query();
+
         // Initial state
-        let state = State::init(door_sensors.query(), &mut serial);
+        let state = State::init(door_status, &mut serial);
 
         rprintln!("Done initializing");
 
@@ -231,11 +234,16 @@ const APP: () = {
         }
     }
 
-    #[task(binds = EXTI0, resources = [button, led])]
-    fn button_click(ctx: button_click::Context) {
-        rprintln!("Button pressed");
+    #[task(binds = EXTI0, resources = [button, serial, door_sensors, state])]
+    fn button_click(mut ctx: button_click::Context) {
         ctx.resources.button.clear_interrupt_pending_bit();
-        ctx.resources.led.toggle();
+
+        let serial = &mut ctx.resources.serial;
+
+        serial.write(b":: Button pressed, resetting state\n").ok();
+        let door_status = ctx.resources.door_sensors.query();
+        uwrite!(SerialWriter(serial), ":: Door status: {:?}\n", door_status).ok();
+        ctx.resources.state.reset(door_status, serial);
     }
 
     /// This task runs every second.

@@ -43,4 +43,9 @@ impl State {
 
         *self = to;
     }
+
+    pub fn reset(&mut self, door_status: DoorStatus, serial: &mut SerialPortType) {
+        serial.write(b":: Reset\n").ok();
+        self.transition(Self::init(door_status, serial), serial);
+    }
 }

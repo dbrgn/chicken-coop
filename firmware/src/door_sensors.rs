@@ -1,12 +1,14 @@
 //! The door sensors that can detect whether the door is open or closed.
 
 use stm32f4xx_hal::gpio::{EPin, Input, PullUp};
+use ufmt::derive::uDebug;
 
 pub struct DoorSensors {
     switch_open: EPin<Input<PullUp>>,
     switch_closed: EPin<Input<PullUp>>,
 }
 
+#[derive(uDebug)]
 pub enum DoorStatus {
     Open,
     Closed,
