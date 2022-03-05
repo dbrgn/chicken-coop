@@ -3,7 +3,7 @@
 start_file=start4.elf
 fixup_file=fixup4.dat
 
-kernel=Image
+kernel=zImage
 
 # To use an external initramfs file
 #initramfs rootfs.cpio.gz
@@ -32,11 +32,3 @@ dtoverlay=krnbt=on
 
 # Enable I²C hardware
 dtparam=i2c_arm=on
-
-# Enable 64bits support
-arm_64bit=1
-
-# Other (?)
-dtoverlay=vc4-kms-v3d-pi4
-dtoverlay=imx219
-#dtoverlay=ov5647
