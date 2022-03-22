@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+function print_usage {
+    echo "Usage: $0 <TARGET>"
+    echo "Targets:"
+    echo "  1: USB Webcam"
+    echo "  2: Raspi Cam"
+}
+
+if [ "$#" -lt 1 ]; then print_usage; exit 1; fi
+
+TARGET=$1
+
+function stream1 {
+    FRAMERATE=10
+    RES=800x480
+    BITRATE=500K
+
+    RTMP=rtmp://0.0.0.0:1935/live/$TARGET
+
+    # Stream USB webcam
+    ffmpeg \
+        -re -f v4l2 -pix_fmt mjpeg -video_size $RES -i /dev/video0 \
+        -c:v libx264 -pix_fmt yuv420p -preset ultrafast -tune zerolatency -g $FRAMERATE -r $FRAMERATE -b:v $BITRATE \
+        -f flv "$RTMP"
+}
+
+if [ "$TARGET" -eq 1 ]; then
+    stream1
+else
+    echo -e "Unknown target: $TARGET\n"
+    print_usage
+    exit 1
+fi

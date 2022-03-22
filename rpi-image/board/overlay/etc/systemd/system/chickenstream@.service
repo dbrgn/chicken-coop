@@ -1,0 +1,14 @@
+[Unit]
+Description=Stream webcam via RTMP.
+After=nginx.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=chickenstream %I
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
