@@ -1,7 +1,8 @@
 # See http://elinux.org/RPiconfig for a description of config.txt syntax
 
-start_file=start4.elf
-fixup_file=fixup4.dat
+# Load extended firmware, because camera module is used
+start_file=start4x.elf
+fixup_file=fixup4x.dat
 
 kernel=zImage
 
