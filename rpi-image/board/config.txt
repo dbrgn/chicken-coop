@@ -17,10 +17,11 @@ overscan_top=16
 overscan_bottom=16
 
 # How much memory in MB to assign to the GPU on Pi models having
-# 256, 512 or 1024 MB total memory
-gpu_mem_256=64
-gpu_mem_512=64
-gpu_mem_1024=64
+# 256, 512 or 1024 MB total memory. Note: For the camera module,
+# the GPU needs at least 128 MiB of memory.
+gpu_mem_256=128
+gpu_mem_512=128
+gpu_mem_1024=256
 
 # Always enable output to HDMI
 hdmi_force_hotplug=1
