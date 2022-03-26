@@ -30,9 +30,9 @@ function stream {
 
 
 if [ "$TARGET" = "picam" ]; then
-    stream /dev/video0 -input_format h264 10 800x480 500K
+    stream /dev/webcams/picam -input_format h264 10 800x480 500K
 elif [ "$TARGET" = "usb" ]; then
-    stream /dev/video1 -pix_fmt mjpeg 10 800x480 500K
+    stream /dev/webcams/usb -pix_fmt mjpeg 10 800x480 500K
 else
     echo -e "Unknown target: $TARGET\n"
     print_usage
