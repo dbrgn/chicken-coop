@@ -1,2 +1,2 @@
 ACTION=="add", SUBSYSTEM=="video4linux", ATTR{name}=="camera0", SYMLINK+="webcams/picam", PROGRAM="/usr/bin/v4l2-ctl --set-fmt-video width=1080,height=720,pixelformat=4 -d /dev/%k --set-ctrl video_bitrate=1500000,h264_profile=1,repeat_sequence_header=1,rotate=0,h264_i_frame_period=150"
-ACTION=="add", SUBSYSTEM=="video4linux", ATTR{name}=="GENERAL WEBCAM: GENERAL WEBCAM", SYMLINK+="webcams/usb"
+ACTION=="add", SUBSYSTEM=="video4linux", ATTR{name}=="GENERAL WEBCAM: GENERAL WEBCAM", ENV{ID_V4L_CAPABILITIES}==":capture:", SYMLINK+="webcams/usb"

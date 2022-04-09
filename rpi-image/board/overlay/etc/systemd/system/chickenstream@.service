@@ -1,5 +1,5 @@
 [Unit]
-Description=Stream webcam via RTMP.
+Description=Stream webcam to RTP.
 After=nginx.service
 
 [Service]

@@ -12,27 +12,31 @@ if [ "$#" -lt 1 ]; then print_usage; exit 1; fi
 
 TARGET=$1
 
-function stream {
-    DEV=$1
-    INPUT_CMD=$2
-    INPUT_FMT=$3
-    FRAMERATE=$4
-    RES=$5
-    BITRATE=$6
-
-    RTMP=rtmp://0.0.0.0:1935/live/$TARGET
+function stream_picam {
+    DEV=/dev/webcams/picam
+    RTP=rtp://127.0.0.1:5001/
 
     ffmpeg \
-        -re -f v4l2 "$INPUT_CMD" "$INPUT_FMT" -video_size "$RES" -i "$DEV" \
-        -c:v libx264 -pix_fmt yuv420p -preset ultrafast -tune zerolatency -g "$FRAMERATE" -r "$FRAMERATE" -b:v "$BITRATE" \
-        -f flv "$RTMP"
+        -f v4l2 -input_format h264 -i "$DEV" \
+        -c:v copy \
+        -f rtp $RTP
+}
+
+function stream_usb {
+    DEV=/dev/webcams/usb
+    RTP=rtp://127.0.0.1:5002/
+
+    ffmpeg \
+        -f v4l2 -pix_fmt mjpeg -video_size 800x480 -i "$DEV" \
+        -c:v libx264 -pix_fmt yuv420p -preset ultrafast -tune zerolatency -g 10 -r 10 -b:v 500K \
+        -f rtp $RTP
 }
 
 
 if [ "$TARGET" = "picam" ]; then
-    stream /dev/webcams/picam -input_format h264 10 800x480 500K
+    stream_picam
 elif [ "$TARGET" = "usb" ]; then
-    stream /dev/webcams/usb -pix_fmt mjpeg 10 800x480 500K
+    stream_usb
 else
     echo -e "Unknown target: $TARGET\n"
     print_usage

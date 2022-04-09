@@ -1,1 +1,0 @@
-source "$BR2_EXTERNAL_CHICKENDOOR_PATH/package/nginx-rtmp-module/Config.in"

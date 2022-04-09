@@ -26,7 +26,6 @@ tar xf $ARCHIVE
 echo "==> Build!"
 cd $DIR
 make BR2_EXTERNAL=.. chickendoor_defconfig
-make -j$(($(nproc) - 2)) nginx-rtmp-module  # See https://lists.buildroot.org/pipermail/buildroot/2022-March/638117.html and replies
 make -j$(($(nproc) - 2))
 
 echo "==> Done! Find the image at $DIR/output/images/sdcard.img"

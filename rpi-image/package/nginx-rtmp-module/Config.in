@@ -1,9 +1,0 @@
-config BR2_PACKAGE_NGINX_RTMP_MODULE
-	bool "nginx-rtmp-module"
-	depends on BR2_PACKAGE_NGINX_HTTP
-	select BR2_PACKAGE_OPENSSL
-    select BR2_PACKAGE_NGINX_HTTP_SSL_MODULE
-	help
-	  NGINX-based RTMP media streaming server.
-
-	  https://github.com/arut/nginx-rtmp-module
