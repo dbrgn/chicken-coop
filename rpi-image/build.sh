@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION="2021.11.2"
+VERSION="2022.02"
 DIR="buildroot-$VERSION"
 ARCHIVE="$DIR.tar.xz"
 URL="https://buildroot.org/downloads/$ARCHIVE"
-SHA256SUM=3060005779e5f64bca317f0749ee306e8b02e693b7ccd502b0fd083847e493d2
+SHA256SUM=8161c43dc6a11c0bc86588c09a8e1dc935b28ca046447ad02bf7074064456701
 
 echo -e "Building Chicken Door Image\n"
 
