@@ -4,8 +4,9 @@ set -euo pipefail
 function print_usage {
     echo "Usage: $0 <TARGET>"
     echo "Targets:"
-    echo "  usb: USB Webcam"
     echo "  picam: Raspi Cam"
+    echo "  usb: USB Webcam"
+    echo "  audio: Audio (from USB Webcam)"
 }
 
 if [ "$#" -lt 1 ]; then print_usage; exit 1; fi
@@ -32,11 +33,22 @@ function stream_usb {
         -f rtp $RTP
 }
 
+function stream_audio {
+    DEV=hw:0
+    RTP=rtp://127.0.0.1:5003/
+
+    ffmpeg \
+        -f alsa -i hw:0 \
+        -acodec libopus -b:a 96k -ar 48000 -ac 1 \
+        -ssrc 1 -payload_type 111 -f rtp $RTP
+}
 
 if [ "$TARGET" = "picam" ]; then
     stream_picam
 elif [ "$TARGET" = "usb" ]; then
     stream_usb
+elif [ "$TARGET" = "audio" ]; then
+    stream_audio
 else
     echo -e "Unknown target: $TARGET\n"
     print_usage
