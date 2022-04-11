@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="Danilo Bargen">
+
+    <title>Chickenstream</title>
+
+    <style>
+        html {
+            font-family: sans-serif;
+        }
+
+        h2 {
+            margin: 0;
+        }
+
+        #wrapper {
+            display: flex;
+            gap: 8px;
+        }
+
+        @media (max-width: 1000px) {
+            #wrapper {
+                flex-direction: column;
+            }
+        }
+
+        .stream {
+            flex-grow: 1;
+            flex-basis: 50%;
+        }
+
+        .status {
+            margin: 4px 0 8px;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Chickenstream 🐔</h1>
+    <p>&laquo;Hot chicks in your area!&raquo;</p>
+    <div id="wrapper">
+        <div class="stream" id="stream-picam">
+            <h2>Indoor</h2>
+            <p class="status">new</p>
+            <video width='100%' playsinline />
+        </div>
+        <div class="stream" id="stream-usb">
+            <h2>Outdoor</h2>
+            <p class="status">new</p>
+            <video width='100%' playsinline />
+        </div>
+    </div>
+
+    <script type="text/javascript" src="adapter_no_edge.js" ></script>
+    <script type="text/javascript" src="janus.js" ></script>
+    <script type="text/javascript" src="chickenstream.js" ></script>
+</body>
+
+</html>
