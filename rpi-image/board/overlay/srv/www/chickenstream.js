@@ -8,6 +8,7 @@ const STREAMS = {
         description: 'Indoor',
         wrapper: document.querySelector('#stream-picam'),
         status: document.querySelector('#stream-picam .status'),
+        bitrate: document.querySelector('#stream-picam .bitrate'),
         video: document.querySelector('#stream-picam video'),
     },
     usb: {
@@ -15,6 +16,7 @@ const STREAMS = {
         description: 'Outdoor',
         wrapper: document.querySelector('#stream-usb'),
         status: document.querySelector('#stream-usb .status'),
+        bitrate: document.querySelector('#stream-usb .bitrate'),
         video: document.querySelector('#stream-usb video'),
     }
 }
@@ -140,6 +142,12 @@ function attachStreaming(janus, stream) {
             // Play
             stream.video.volume = 0;
             stream.video.play();
+
+            // Set up bitrate timer
+            bitrateTimer = setInterval(() => {
+                const bitrate = streaming.getBitrate();
+                stream.bitrate.innerText = bitrate;
+            }, 1000);
         },
         ondataopen: (data) => console.debug('The DataChannel is available!'),
         ondata: (data) => console.debug('We got data from the DataChannel:', data),

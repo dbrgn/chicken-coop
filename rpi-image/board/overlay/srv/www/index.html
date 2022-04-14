@@ -33,9 +33,11 @@
             flex-basis: 50%;
         }
 
-        .status {
+        .meta {
             margin: 4px 0 8px;
             font-style: italic;
+            display: flex;
+            gap: 8px;
         }
     </style>
 </head>
@@ -46,12 +48,20 @@
     <div id="wrapper">
         <div class="stream" id="stream-picam">
             <h2>Indoor</h2>
-            <p class="status">new</p>
+            <div class="meta">
+                <p class="status">new</p>
+                <p>|</p>
+                <p class="bitrate">? kbit/s</p>
+            </div>
             <video width='100%' playsinline />
         </div>
         <div class="stream" id="stream-usb">
             <h2>Outdoor</h2>
-            <p class="status">new</p>
+            <div class="meta">
+                <p class="status">new</p>
+                <p>|</p>
+                <p class="bitrate">? kbit/s</p>
+            </div>
             <video width='100%' playsinline />
         </div>
     </div>
