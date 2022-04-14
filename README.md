@@ -1,6 +1,7 @@
-# Chicken Door
+# Chicken Door / Chicken Cam
 
-An automated door for our chicken coop.
+An automated door for our chicken coop, plus a Raspberry Pi that livestreams
+two cameras to the browser using WebRTC.
 
 ## How it works
 
@@ -22,7 +23,7 @@ A combination of RTC and ambient light sensor is used:
 
 To detect an open or closed door, reed switches are used.
 
-### State machine
+### Firmware: State machine
 
     ┌───────┐                         ┌─────┐
     │Initial├────────────────────┐    │Error│
@@ -46,21 +47,32 @@ To detect an open or closed door, reed switches are used.
 - `PreClosing`: Waiting for `CLOSING_LUX_THRESHOLD` or `LATEST_CLOSING_TIME`
 - `Error`: Reachable from any state when something goes wrong (e.g. reading a sensor)
 
-## Testing
+## Firmware: Testing
 
 To run unit tests:
 
     cargo test --target x86_64-unknown-linux-gnu --tests
 
-## Flashing
+## Firmware: Flashing
 
     cd firmware
     cargo flash --connect-under-reset --chip STM32F411CEUx --release
 
-## Serial Terminal
+## Firmware: Serial Terminal
 
 To open a serial connection:
 
     python -m serial.tools.miniterm /dev/ttyACM0 9600
 
 Then type `?` to see the help.
+
+## Chicken Cam
+
+In addition, the `rpi-image` directory contains a buildroot based Linux and all
+configuration necessary to livestream two cameras (an USB webcam and a raspi
+cam) to the web browser using WebRTC (backed by Janus as streaming server).
+
+To build the Raspberry Pi image:
+
+    cd rpi-image
+    ./build.sh
