@@ -4,6 +4,7 @@ use heapless::spsc::Queue;
 
 /// All possible error types
 #[derive(PartialEq, Copy, Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
     VemlGainSetFailed,
     VemlIntegrationTimeSetFailed,
@@ -25,7 +26,7 @@ impl Error {
         }
     }
 
-    pub fn to_bytes(&self) -> &'static [u8] {
+    pub fn as_bytes(&self) -> &'static [u8] {
         // TODO: Maybe implement uDisplay instead?
         match self {
             Self::VemlGainSetFailed => b"VEML7700: Setting gain failed",

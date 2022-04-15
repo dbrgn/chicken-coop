@@ -43,8 +43,8 @@ use crate::{
 
 const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0; // Close threshold
 const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0; // Open threshold
-const EARLIEST_OPENING_TIME: (u32, u32) = (08, 30);
-const LATEST_OPENING_TIME: (u32, u32) = (09, 30);
+const EARLIEST_OPENING_TIME: (u32, u32) = (8, 30);
+const LATEST_OPENING_TIME: (u32, u32) = (9, 30);
 const EARLIEST_CLOSING_TIME: (u32, u32) = (17, 00);
 const LATEST_CLOSING_TIME: (u32, u32) = (22, 00);
 
@@ -462,7 +462,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
             serial.write(b"Logged errors:\n\n").ok();
             for error in ctx.resources.errors.iter() {
                 serial.write(b"- ").ok();
-                serial.write(error.to_bytes()).ok();
+                serial.write(error.as_bytes()).ok();
                 serial.write(b"\n").ok();
             }
             if ctx.resources.errors.is_empty() {
@@ -499,7 +499,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 serial.write(b"\n").ok();
             }
             Err(_) => {
-                Error::RtcReadTimeError.log(&mut ctx.resources.errors);
+                Error::RtcReadTimeError.log(ctx.resources.errors);
                 serial.write(b"Could not determine time\n").ok();
             }
         },
