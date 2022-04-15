@@ -9,7 +9,7 @@ ds323x = "0.5"
 embedded-hal = "0.2"
 nb = "1"
 cortex-m = "0.7"
-cortex-m-rt = "0.6"
+cortex-m-rt = "0.7"
 cortex-m-rtic = "1"
 heapless = "0.7"
 panic-halt = "0.2"
@@ -21,7 +21,7 @@ usbd-serial = "0.1"
 veml6030 = "0.1.2"
 
 [dependencies.stm32f4xx-hal]
-version = "0.10.1"
+version = "0.11"
 features = ["rt", "stm32f411", "usb_fs"]
 
 [profile.release]

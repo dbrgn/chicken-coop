@@ -19,7 +19,7 @@ const LATEST_OPENING_TIME: (u32, u32) = (9, 30);
 const EARLIEST_CLOSING_TIME: (u32, u32) = (17, 00);
 const LATEST_CLOSING_TIME: (u32, u32) = (22, 00);
 
-#[app(device = stm32f4xx_hal::stm32, dispatchers = [SPI1, SPI2], peripherals = true)]
+#[app(device = stm32f4xx_hal::pac, dispatchers = [SPI1, SPI2], peripherals = true)]
 mod app {
     use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc, Timelike};
     use heapless::spsc::Queue;
@@ -28,7 +28,7 @@ mod app {
     use shared_bus_rtic::SharedBus;
     use stm32f4xx_hal::{
         self as hal,
-        gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
+        gpio::{gpioa, gpiob, gpioc, Alternate, Edge, Input, OpenDrain, Output, PullUp, PushPull},
         i2c::I2c,
         otg_fs::{UsbBus, UsbBusType, USB},
         pac,
@@ -52,8 +52,13 @@ mod app {
         states::State,
     };
 
-    type SharedBusType =
-        I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
+    type SharedBusType = I2c<
+        pac::I2C1,
+        (
+            gpiob::PB6<Alternate<OpenDrain, 4>>,
+            gpiob::PB7<Alternate<OpenDrain, 4>>,
+        ),
+    >;
 
     pub struct SharedBusResources<T: 'static> {
         // Ambient light sensor (VEML7700)
@@ -182,7 +187,7 @@ mod app {
         // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
         let scl = gpiob.pb6.into_alternate::<4>().set_open_drain();
         let sda = gpiob.pb7.into_alternate::<4>().set_open_drain();
-        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), clocks);
+        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), &clocks);
 
         // Create shared bus
         let bus_manager = shared_bus_rtic::new!(i2c, SharedBusType);
