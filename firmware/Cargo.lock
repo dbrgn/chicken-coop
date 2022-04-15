@@ -187,12 +187,12 @@ dependencies = [
 
 [[package]]
 name = "ds323x"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e5a979b9d031d592c91305b3d4f7bf6a2c1338231f1be54caa43646972b6b04"
+checksum = "057e63d03a3beb83d3c9b7a19b799c60e203b0c53f1bbec6a715804907f73a2b"
 dependencies = [
  "embedded-hal",
- "rtcc",
+ "rtcc 0.3.0",
 ]
 
 [[package]]
@@ -473,6 +473,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rtcc"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3623619ce77c09a7d87cf7c61c5c887b9c7dee8805f66af6c4aa5824be4d9930"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "rtic-core"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -580,7 +589,7 @@ dependencies = [
  "embedded-hal",
  "nb 1.0.0",
  "rand_core",
- "rtcc",
+ "rtcc 0.2.1",
  "stm32f4",
  "synopsys-usb-otg",
  "void",

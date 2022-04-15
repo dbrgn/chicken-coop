@@ -279,7 +279,7 @@ const APP: () = {
         let rtc = &mut ctx.resources.i2c.rtc;
 
         // Get current time
-        let time = match rtc.get_time() {
+        let time = match rtc.time() {
             Ok(time) => time,
             Err(_) => {
                 Error::RtcReadTimeError.log(errors);
@@ -492,7 +492,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 serial.write(b"Could not measure brightness level\n").ok();
             }
         },
-        b'c' | b'C' => match ctx.resources.i2c.rtc.get_time() {
+        b'c' | b'C' => match ctx.resources.i2c.rtc.time() {
             Ok(time) => {
                 serial.write(b"Current time: ").ok();
                 print_time(&time, serial);
@@ -503,7 +503,7 @@ fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
                 serial.write(b"Could not determine time\n").ok();
             }
         },
-        b't' | b'T' => match ctx.resources.i2c.rtc.get_temperature() {
+        b't' | b'T' => match ctx.resources.i2c.rtc.temperature() {
             Ok(temp) => {
                 uwriteln!(
                     SerialWriter(serial),
