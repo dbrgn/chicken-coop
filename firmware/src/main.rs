@@ -2,28 +2,8 @@
 #![no_main]
 #![cfg(target_arch = "arm")] // Main module will only build for ARM. For testing, use lib.rs.
 
-use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc, Timelike};
-use heapless::spsc::Queue;
 use panic_halt as _;
 use rtic::app;
-use rtt_target::{rprintln, rtt_init_print};
-use shared_bus_rtic::SharedBus;
-use stm32f4xx_hal::{
-    self as hal,
-    gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
-    i2c::I2c,
-    otg_fs::{UsbBus, UsbBusType, USB},
-    pac,
-    prelude::*,
-    timer::{CountDownTimer, Event, Timer},
-};
-use ufmt::{uwrite, uwriteln};
-use usb_device::{
-    bus::UsbBusAllocator,
-    prelude::{UsbDevice, UsbDeviceBuilder, UsbVidPid},
-};
-use usbd_serial::{SerialPort, USB_CLASS_CDC};
-use veml6030::Veml6030;
 
 mod ambient_light;
 mod door_sensors;
@@ -32,15 +12,6 @@ mod motor;
 mod serial;
 mod states;
 
-use crate::{
-    ambient_light::AmbientLight,
-    door_sensors::{DoorSensors, DoorStatus},
-    errors::Error,
-    motor::Motor,
-    serial::{SerialPortType, SerialWriter},
-    states::State,
-};
-
 const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0; // Close threshold
 const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0; // Open threshold
 const EARLIEST_OPENING_TIME: (u32, u32) = (8, 30);
@@ -48,33 +19,82 @@ const LATEST_OPENING_TIME: (u32, u32) = (9, 30);
 const EARLIEST_CLOSING_TIME: (u32, u32) = (17, 00);
 const LATEST_CLOSING_TIME: (u32, u32) = (22, 00);
 
-type SharedBusType = I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
+#[app(device = stm32f4xx_hal::stm32, dispatchers = [SPI1, SPI2], peripherals = true)]
+mod app {
+    use ds323x::{ic::DS3231, interface::I2cInterface, Ds323x, Rtcc, Timelike};
+    use heapless::spsc::Queue;
+    use panic_halt as _;
+    use rtt_target::{rprintln, rtt_init_print};
+    use shared_bus_rtic::SharedBus;
+    use stm32f4xx_hal::{
+        self as hal,
+        gpio::{gpioa, gpiob, gpioc, AlternateOD, Edge, Input, Output, PullUp, PushPull, AF4},
+        i2c::I2c,
+        otg_fs::{UsbBus, UsbBusType, USB},
+        pac,
+        prelude::*,
+        timer::{CountDownTimer, Event, Timer},
+    };
+    use ufmt::{uwrite, uwriteln};
+    use usb_device::{
+        bus::UsbBusAllocator,
+        prelude::{UsbDevice, UsbDeviceBuilder, UsbVidPid},
+    };
+    use usbd_serial::{SerialPort, USB_CLASS_CDC};
+    use veml6030::Veml6030;
 
-pub struct SharedBusResources<T: 'static> {
-    // Ambient light sensor (VEML7700)
-    lightsensor: Veml6030<SharedBus<T>>,
+    use crate::{
+        ambient_light::AmbientLight,
+        door_sensors::{DoorSensors, DoorStatus},
+        errors::Error,
+        motor::Motor,
+        serial::{self, SerialPortType, SerialWriter},
+        states::State,
+    };
 
-    // Real-time clock (DS3231)
-    rtc: Ds323x<I2cInterface<SharedBus<T>>, DS3231>,
-}
+    type SharedBusType =
+        I2c<pac::I2C1, (gpiob::PB6<AlternateOD<AF4>>, gpiob::PB7<AlternateOD<AF4>>)>;
 
-#[app(device = stm32f4xx_hal::stm32, peripherals = true)]
-const APP: () = {
-    struct Resources {
+    pub struct SharedBusResources<T: 'static> {
+        // Ambient light sensor (VEML7700)
+        lightsensor: Veml6030<SharedBus<T>>,
+
+        // Real-time clock (DS3231)
+        rtc: Ds323x<I2cInterface<SharedBus<T>>, DS3231>,
+    }
+
+    #[shared]
+    struct SharedResources {
         // State machine
+        #[lock_free]
         state: State,
 
         // Debugging
+        #[lock_free]
+        errors: Queue<Error, 16>, // Allow logging up to 16 errors
+
+        // Door sensors
+        #[lock_free]
+        door_sensors: DoorSensors,
+
+        // Serial
+        #[lock_free]
+        serial: SerialPortType,
+
+        // I²C devices
+        #[lock_free]
+        i2c: SharedBusResources<SharedBusType>,
+    }
+
+    #[local]
+    struct LocalResources {
+        // Debugging
         button: gpioa::PA0<Input<PullUp>>,
         led: gpioc::PC13<Output<PushPull>>,
-        errors: Queue<Error, 16>, // Allow logging up to 16 errors
 
         // Periodic timer
         timer: CountDownTimer<pac::TIM2>,
         timer_counter: u8,
-
-        // Door sensors
-        door_sensors: DoorSensors,
 
         // Ambient light state tracker
         ambient_light: AmbientLight,
@@ -84,19 +104,13 @@ const APP: () = {
 
         // USB
         usb_dev: UsbDevice<'static, UsbBusType>,
-
-        // Serial
-        serial: SerialPortType,
-
-        // I²C devices
-        i2c: SharedBusResources<SharedBusType>,
     }
 
-    #[init]
-    fn init(mut ctx: init::Context) -> init::LateResources {
-        static mut EP_MEMORY: [u32; 1024] = [0; 1024];
-        static mut USB_BUS: Option<UsbBusAllocator<UsbBusType>> = None;
-
+    #[init(local = [
+       ep_memory: [u32; 1024] = [0; 1024],
+       usb_bus: Option<UsbBusAllocator<UsbBusType>> = None,
+    ])]
+    fn init(mut ctx: init::Context) -> (SharedResources, LocalResources, init::Monotonics) {
         rtt_init_print!();
 
         let mut errors = Queue::new();
@@ -130,18 +144,23 @@ const APP: () = {
             pin_dp: gpioa.pa12.into_alternate::<10>(),
             hclk: clocks.hclk(),
         };
-        USB_BUS.replace(UsbBus::new(usb, EP_MEMORY));
+        ctx.local
+            .usb_bus
+            .replace(UsbBus::new(usb, ctx.local.ep_memory));
         let mut serial = SerialPort::new_with_store(
-            USB_BUS.as_ref().unwrap(),
+            ctx.local.usb_bus.as_ref().unwrap(),
             [0u8; serial::SERIAL_READ_BUFFER_BYTES],
             [0u8; serial::SERIAL_WRITE_BUFFER_BYTES],
         );
-        let usb_dev = UsbDeviceBuilder::new(USB_BUS.as_ref().unwrap(), UsbVidPid(0x16c0, 0x27dd))
-            .manufacturer("Bargen Software")
-            .product("ChickenDoor")
-            .serial_number("0001")
-            .device_class(USB_CLASS_CDC)
-            .build();
+        let usb_dev = UsbDeviceBuilder::new(
+            ctx.local.usb_bus.as_ref().unwrap(),
+            UsbVidPid(0x16c0, 0x27dd),
+        )
+        .manufacturer("Bargen Software")
+        .product("ChickenDoor")
+        .serial_number("0001")
+        .device_class(USB_CLASS_CDC)
+        .build();
 
         // Motor driver
         let motor = Motor {
@@ -177,8 +196,10 @@ const APP: () = {
         //
         // TODO: Timeout!
         let mut lightsensor = Veml6030::new(bus_manager.acquire(), veml6030::SlaveAddr::default());
-        let ambient_light =
-            AmbientLight::new(AMBIENT_LIGHT_THRESHOLD_LOW, AMBIENT_LIGHT_THRESHOLD_HIGH);
+        let ambient_light = AmbientLight::new(
+            super::AMBIENT_LIGHT_THRESHOLD_LOW,
+            super::AMBIENT_LIGHT_THRESHOLD_HIGH,
+        );
         if let Err(e) = lightsensor.set_gain(veml6030::Gain::OneQuarter) {
             rprintln!("Could not set VEML gain: {:?}", e);
             Error::VemlGainSetFailed.log(&mut errors);
@@ -218,65 +239,68 @@ const APP: () = {
 
         rprintln!("Done initializing");
 
-        init::LateResources {
+        let shared = SharedResources {
             state,
+            errors,
+            door_sensors,
+            serial,
+            i2c: SharedBusResources { lightsensor, rtc },
+        };
+        let local = LocalResources {
             button,
             led,
-            errors,
             timer,
             timer_counter: 10,
-            door_sensors,
             ambient_light,
             motor,
             usb_dev,
-            serial,
-            i2c: SharedBusResources { lightsensor, rtc },
-        }
+        };
+        (shared, local, init::Monotonics())
     }
 
-    #[task(binds = EXTI0, resources = [button, serial, door_sensors, state])]
+    #[task(binds = EXTI0, shared = [serial, door_sensors, state], local = [button])]
     fn button_click(mut ctx: button_click::Context) {
-        ctx.resources.button.clear_interrupt_pending_bit();
+        ctx.local.button.clear_interrupt_pending_bit();
 
-        let serial = &mut ctx.resources.serial;
+        let serial = &mut ctx.shared.serial;
 
         serial.write(b":: Button pressed, resetting state\n").ok();
-        let door_status = ctx.resources.door_sensors.query();
+        let door_status = ctx.shared.door_sensors.query();
         uwrite!(SerialWriter(serial), ":: Door status: {:?}\n", door_status).ok();
-        ctx.resources.state.reset(door_status, serial);
+        ctx.shared.state.reset(door_status, serial);
     }
 
     /// This task runs every second.
-    #[task(binds = TIM2, resources = [led, timer, timer_counter], spawn = [update])]
+    #[task(binds = TIM2, local = [led, timer, timer_counter])]
     fn every_second(ctx: every_second::Context) {
         // Toggle LED
-        ctx.resources.led.toggle();
+        ctx.local.led.toggle();
 
         // Decrement timer counter to work around the fact that the HAL
         // currently doesn't support wait times >1s (because sleeping is
         // specified using a frequency).
-        *ctx.resources.timer_counter -= 1;
-        if *ctx.resources.timer_counter == 0 {
-            *ctx.resources.timer_counter = 10;
+        *ctx.local.timer_counter -= 1;
+        if *ctx.local.timer_counter == 0 {
+            *ctx.local.timer_counter = 10;
 
             // Spawn update task
-            ctx.spawn.update().unwrap();
+            update::spawn().unwrap();
         }
 
         // Clear interrupt
-        ctx.resources.timer.clear_interrupt(Event::TimeOut);
+        ctx.local.timer.clear_interrupt(Event::TimeOut);
     }
 
     /// This task is run every 10s.
-    #[task(resources = [state, ambient_light, i2c, serial, errors])]
+    #[task(shared = [state, i2c, serial, errors], local = [ambient_light])]
     fn update(mut ctx: update::Context) {
         // Error collector
-        let errors = &mut ctx.resources.errors;
+        let errors = &mut ctx.shared.errors;
 
         // Resource aliases
-        let serial = &mut ctx.resources.serial;
-        let state = &mut ctx.resources.state;
-        let rtc = &mut ctx.resources.i2c.rtc;
+        let serial = &mut ctx.shared.serial;
+        let state = &mut ctx.shared.state;
+        let rtc = &mut ctx.shared.i2c.rtc;
 
         // Get current time
         let time = match rtc.time() {
@@ -296,33 +320,35 @@ const APP: () = {
         // Get current timestamp.
         // For easier calculations, use day-minutes as timestamps
         let timestamp = time.hour() * 60 + time.minute();
-        let earliest_opening_timestamp = EARLIEST_OPENING_TIME.0 * 60 + EARLIEST_OPENING_TIME.1;
-        let latest_opening_timestamp = LATEST_OPENING_TIME.0 * 60 + LATEST_OPENING_TIME.1;
-        let earliest_closing_timestamp = EARLIEST_CLOSING_TIME.0 * 60 + EARLIEST_CLOSING_TIME.1;
-        let latest_closing_timestamp = LATEST_CLOSING_TIME.0 * 60 + LATEST_CLOSING_TIME.1;
+        let earliest_opening_timestamp =
+            super::EARLIEST_OPENING_TIME.0 * 60 + super::EARLIEST_OPENING_TIME.1;
+        let latest_opening_timestamp =
+            super::LATEST_OPENING_TIME.0 * 60 + super::LATEST_OPENING_TIME.1;
+        let earliest_closing_timestamp =
+            super::EARLIEST_CLOSING_TIME.0 * 60 + super::EARLIEST_CLOSING_TIME.1;
+        let latest_closing_timestamp =
+            super::LATEST_CLOSING_TIME.0 * 60 + super::LATEST_CLOSING_TIME.1;
 
         // Read lux if in Pre* state
         let brightness_opt = match state {
-            State::PreOpening | State::PreClosing => {
-                match ctx.resources.i2c.lightsensor.read_lux() {
-                    Ok(lux) => {
-                        uwriteln!(
-                            SerialWriter(serial),
-                            "Current brightness level: {} lux",
-                            lux as usize
-                        )
-                        .ok();
-                        Some(ctx.resources.ambient_light.update(lux))
-                    }
-                    Err(e) => {
-                        let reason = match e {
-                            veml6030::Error::I2C(_) => "I2C bus error",
-                        };
-                        uwriteln!(SerialWriter(serial), "Could not read lux: {}", reason).ok();
-                        None
-                    }
+            State::PreOpening | State::PreClosing => match ctx.shared.i2c.lightsensor.read_lux() {
+                Ok(lux) => {
+                    uwriteln!(
+                        SerialWriter(serial),
+                        "Current brightness level: {} lux",
+                        lux as usize
+                    )
+                    .ok();
+                    Some(ctx.local.ambient_light.update(lux))
                 }
-            }
+                Err(e) => {
+                    let reason = match e {
+                        veml6030::Error::I2C(_) => "I2C bus error",
+                    };
+                    uwriteln!(SerialWriter(serial), "Could not read lux: {}", reason).ok();
+                    None
+                }
+            },
             _ => None,
         };
 
@@ -386,16 +412,16 @@ const APP: () = {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, resources = [usb_dev, serial, i2c, errors, door_sensors, motor])]
+    #[task(binds=OTG_FS, shared = [serial, i2c, errors, door_sensors], local = [motor, usb_dev])]
     fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
-        if !ctx.resources.usb_dev.poll(&mut [ctx.resources.serial]) {
+        if !ctx.local.usb_dev.poll(&mut [ctx.shared.serial]) {
             return;
         }
 
         // Handle serial input
         let mut buf = [0u8; 8];
-        match ctx.resources.serial.read(&mut buf) {
+        match ctx.shared.serial.read(&mut buf) {
             // Data received
             Ok(count) if count > 0 => {
                 for byte in &buf {
@@ -408,142 +434,136 @@ const APP: () = {
         }
     }
 
-    // RTIC requires that free interrupts are declared in an extern block when
-    // using software tasks; these free interrupts will be used to dispatch the
-    // software tasks.
-    extern "C" {
-        fn SPI1();
-        fn SPI2();
-    }
-};
-
-/// Handle single-byte commands sent via serial
-fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
-    let serial = &mut ctx.resources.serial;
-    match byte {
-        b'?' => {
-            serial.write(b"   \\\\\n").ok();
-            serial.write(b"   (o>\n").ok();
-            serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n").ok();
-            serial.write(b" \\_/_)\n").ok();
-            serial.write(b"  _|_\n").ok();
-            serial.write(b"\n").ok();
-            serial.write(b"Status:\n\n").ok();
-            serial.write(b" Door status: ").ok();
-            match ctx.resources.door_sensors.query() {
-                DoorStatus::Open => serial.write(b"open\n").ok(),
-                DoorStatus::Closed => serial.write(b"closed\n").ok(),
-                DoorStatus::Unknown => serial.write(b"unknown\n").ok(),
-                DoorStatus::Error => serial.write(b"error\n").ok(),
-            };
-            serial.write(b" RTC running: ").ok();
-            match ctx.resources.i2c.rtc.running() {
-                Ok(true) => serial.write(b"yes\n").ok(),
-                Ok(false) => serial.write(b"no\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::BUS)) => serial.write(b"bus error\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::OVERRUN)) => {
-                    serial.write(b"overrun error\n").ok()
+    /// Handle single-byte commands sent via serial
+    fn handle_command(byte: u8, ctx: &mut on_usb::Context) {
+        let serial = &mut ctx.shared.serial;
+        match byte {
+            b'?' => {
+                serial.write(b"   \\\\\n").ok();
+                serial.write(b"   (o>\n").ok();
+                serial.write(b"\\\\_//) CHICKEN DOOR STATUS REPORT\n").ok();
+                serial.write(b" \\_/_)\n").ok();
+                serial.write(b"  _|_\n").ok();
+                serial.write(b"\n").ok();
+                serial.write(b"Status:\n\n").ok();
+                serial.write(b" Door status: ").ok();
+                match ctx.shared.door_sensors.query() {
+                    DoorStatus::Open => serial.write(b"open\n").ok(),
+                    DoorStatus::Closed => serial.write(b"closed\n").ok(),
+                    DoorStatus::Unknown => serial.write(b"unknown\n").ok(),
+                    DoorStatus::Error => serial.write(b"error\n").ok(),
+                };
+                serial.write(b" RTC running: ").ok();
+                match ctx.shared.i2c.rtc.running() {
+                    Ok(true) => serial.write(b"yes\n").ok(),
+                    Ok(false) => serial.write(b"no\n").ok(),
+                    Err(ds323x::Error::Comm(hal::i2c::Error::BUS)) => {
+                        serial.write(b"bus error\n").ok()
+                    }
+                    Err(ds323x::Error::Comm(hal::i2c::Error::OVERRUN)) => {
+                        serial.write(b"overrun error\n").ok()
+                    }
+                    Err(ds323x::Error::Comm(hal::i2c::Error::NACK)) => serial.write(b"nack\n").ok(),
+                    Err(ds323x::Error::Comm(hal::i2c::Error::TIMEOUT)) => {
+                        serial.write(b"timeout\n").ok()
+                    }
+                    Err(ds323x::Error::Comm(hal::i2c::Error::CRC)) => serial.write(b"crc\n").ok(),
+                    Err(ds323x::Error::Comm(hal::i2c::Error::ARBITRATION)) => {
+                        serial.write(b"arbitration lost\n").ok()
+                    }
+                    Err(ds323x::Error::Pin(_)) => serial.write(b"pin error\n").ok(),
+                    Err(ds323x::Error::InvalidInputData) => serial.write(b"data error\n").ok(),
+                    Err(ds323x::Error::InvalidDeviceState) => {
+                        serial.write(b"invalid device state\n").ok()
+                    }
+                };
+                serial.write(b"\n").ok();
+                serial.write(b"Logged errors:\n\n").ok();
+                for error in ctx.shared.errors.iter() {
+                    serial.write(b"- ").ok();
+                    serial.write(error.as_bytes()).ok();
+                    serial.write(b"\n").ok();
                 }
-                Err(ds323x::Error::Comm(hal::i2c::Error::NACK)) => serial.write(b"nack\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::TIMEOUT)) => {
-                    serial.write(b"timeout\n").ok()
+                if ctx.shared.errors.is_empty() {
+                    serial.write(b" None\n").ok();
                 }
-                Err(ds323x::Error::Comm(hal::i2c::Error::CRC)) => serial.write(b"crc\n").ok(),
-                Err(ds323x::Error::Comm(hal::i2c::Error::ARBITRATION)) => {
-                    serial.write(b"arbitration lost\n").ok()
-                }
-                Err(ds323x::Error::Pin(_)) => serial.write(b"pin error\n").ok(),
-                Err(ds323x::Error::InvalidInputData) => serial.write(b"data error\n").ok(),
-                Err(ds323x::Error::InvalidDeviceState) => {
-                    serial.write(b"invalid device state\n").ok()
-                }
-            };
-            serial.write(b"\n").ok();
-            serial.write(b"Logged errors:\n\n").ok();
-            for error in ctx.resources.errors.iter() {
-                serial.write(b"- ").ok();
-                serial.write(error.as_bytes()).ok();
+                serial.write(b"\n").ok();
+                serial.write(b"Available commands:\n\n").ok();
+                serial.write(b" ? - Show this report\n").ok();
+                serial.write(b" l - Measure ambient light level\n").ok();
+                serial.write(b" c - Output RTC clock info\n").ok();
+                serial.write(b" t - Output RTC temperature\n").ok();
+                serial.write(b" f - Motor FW\n").ok();
+                serial.write(b" b - Motor BW\n").ok();
+                serial.write(b" o - Motor off\n").ok();
                 serial.write(b"\n").ok();
             }
-            if ctx.resources.errors.is_empty() {
-                serial.write(b" None\n").ok();
+            b'l' | b'L' => match ctx.shared.i2c.lightsensor.read_lux() {
+                Ok(lux) => {
+                    uwriteln!(
+                        SerialWriter(serial),
+                        "Current brightness level: {} lux",
+                        lux as usize
+                    )
+                    .ok();
+                }
+                Err(_e) => {
+                    serial.write(b"Could not measure brightness level\n").ok();
+                }
+            },
+            b'c' | b'C' => match ctx.shared.i2c.rtc.time() {
+                Ok(time) => {
+                    serial.write(b"Current time: ").ok();
+                    print_time(&time, serial);
+                    serial.write(b"\n").ok();
+                }
+                Err(_) => {
+                    Error::RtcReadTimeError.log(ctx.shared.errors);
+                    serial.write(b"Could not determine time\n").ok();
+                }
+            },
+            b't' | b'T' => match ctx.shared.i2c.rtc.temperature() {
+                Ok(temp) => {
+                    uwriteln!(
+                        SerialWriter(serial),
+                        "Current temperature: {}",
+                        temp as usize
+                    )
+                    .ok();
+                }
+                Err(_) => {
+                    serial.write(b"Could not determine temperature\n").ok();
+                }
+            },
+            b'f' | b'F' => {
+                ctx.local.motor.forwards();
+                serial.write(b"Motor: Move forwards\n").ok();
             }
-            serial.write(b"\n").ok();
-            serial.write(b"Available commands:\n\n").ok();
-            serial.write(b" ? - Show this report\n").ok();
-            serial.write(b" l - Measure ambient light level\n").ok();
-            serial.write(b" c - Output RTC clock info\n").ok();
-            serial.write(b" t - Output RTC temperature\n").ok();
-            serial.write(b" f - Motor FW\n").ok();
-            serial.write(b" b - Motor BW\n").ok();
-            serial.write(b" o - Motor off\n").ok();
-            serial.write(b"\n").ok();
+            b'b' | b'B' => {
+                ctx.local.motor.backwards();
+                serial.write(b"Motor: Move backwards\n").ok();
+            }
+            b'o' | b'O' => {
+                ctx.local.motor.off();
+                serial.write(b"Motor: Off\n").ok();
+            }
+            _ => { /* Unknown command, ignore */ }
         }
-        b'l' | b'L' => match ctx.resources.i2c.lightsensor.read_lux() {
-            Ok(lux) => {
-                uwriteln!(
-                    SerialWriter(serial),
-                    "Current brightness level: {} lux",
-                    lux as usize
-                )
-                .ok();
-            }
-            Err(_e) => {
-                serial.write(b"Could not measure brightness level\n").ok();
-            }
-        },
-        b'c' | b'C' => match ctx.resources.i2c.rtc.time() {
-            Ok(time) => {
-                serial.write(b"Current time: ").ok();
-                print_time(&time, serial);
-                serial.write(b"\n").ok();
-            }
-            Err(_) => {
-                Error::RtcReadTimeError.log(ctx.resources.errors);
-                serial.write(b"Could not determine time\n").ok();
-            }
-        },
-        b't' | b'T' => match ctx.resources.i2c.rtc.temperature() {
-            Ok(temp) => {
-                uwriteln!(
-                    SerialWriter(serial),
-                    "Current temperature: {}",
-                    temp as usize
-                )
-                .ok();
-            }
-            Err(_) => {
-                serial.write(b"Could not determine temperature\n").ok();
-            }
-        },
-        b'f' | b'F' => {
-            ctx.resources.motor.forwards();
-            serial.write(b"Motor: Move forwards\n").ok();
-        }
-        b'b' | b'B' => {
-            ctx.resources.motor.backwards();
-            serial.write(b"Motor: Move backwards\n").ok();
-        }
-        b'o' | b'O' => {
-            ctx.resources.motor.off();
-            serial.write(b"Motor: Off\n").ok();
-        }
-        _ => { /* Unknown command, ignore */ }
-    }
-}
-
-/// Print the 24h time with proper 0-prefixing.
-fn print_time(time: &impl Timelike, serial: &mut SerialPortType) {
-    fn print_part(value: u32, serial: &mut SerialPortType) {
-        if value < 10 {
-            uwrite!(SerialWriter(serial), "0").ok();
-        }
-        uwrite!(SerialWriter(serial), "{}", value).ok();
     }
 
-    print_part(time.hour(), serial);
-    serial.write(b":").ok();
-    print_part(time.minute(), serial);
-    serial.write(b":").ok();
-    print_part(time.second(), serial);
+    /// Print the 24h time with proper 0-prefixing.
+    fn print_time(time: &impl Timelike, serial: &mut SerialPortType) {
+        fn print_part(value: u32, serial: &mut SerialPortType) {
+            if value < 10 {
+                uwrite!(SerialWriter(serial), "0").ok();
+            }
+            uwrite!(SerialWriter(serial), "{}", value).ok();
+        }
+
+        print_part(time.hour(), serial);
+        serial.write(b":").ok();
+        print_part(time.minute(), serial);
+        serial.write(b":").ok();
+        print_part(time.second(), serial);
+    }
 }
