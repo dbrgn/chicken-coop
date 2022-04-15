@@ -12,6 +12,7 @@ pub enum Error {
     UfmtSerialWriteError,
     MotorGpioWriteError,
     RtcReadTimeError,
+    TimerNotStarted,
 }
 
 impl Error {
@@ -35,6 +36,7 @@ impl Error {
             Self::UfmtSerialWriteError => b"Write serial log using ufmt failed",
             Self::MotorGpioWriteError => b"Motor GPIO write error",
             Self::RtcReadTimeError => b"RTC: Reading time failed",
+            Self::TimerNotStarted => b"Timer could not be started",
         }
     }
 }

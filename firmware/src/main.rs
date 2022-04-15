@@ -33,7 +33,7 @@ mod app {
         otg_fs::{UsbBus, UsbBusType, USB},
         pac,
         prelude::*,
-        timer::{CountDownTimer, Event, Timer},
+        timer::{CounterHz, Event, Timer},
     };
     use ufmt::{uwrite, uwriteln};
     use usb_device::{
@@ -98,7 +98,7 @@ mod app {
         led: gpioc::PC13<Output<PushPull>>,
 
         // Periodic timer
-        timer: CountDownTimer<pac::TIM2>,
+        timer: CounterHz<pac::TIM2>,
         timer_counter: u8,
 
         // Ambient light state tracker
@@ -128,8 +128,8 @@ mod app {
         let rcc = ctx.device.RCC.constrain();
         let clocks = rcc
             .cfgr
-            .use_hse(25.mhz())
-            .sysclk(48.mhz())
+            .use_hse(25.MHz())
+            .sysclk(48.MHz())
             .require_pll48clk()
             .freeze();
 
@@ -187,7 +187,7 @@ mod app {
         // I2C setup. SCL is PB6 and SDA is PB7 (both with AF04).
         let scl = gpiob.pb6.into_alternate::<4>().set_open_drain();
         let sda = gpiob.pb7.into_alternate::<4>().set_open_drain();
-        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.khz(), &clocks);
+        let i2c = I2c::new(ctx.device.I2C1, (scl, sda), 400.kHz(), &clocks);
 
         // Create shared bus
         let bus_manager = shared_bus_rtic::new!(i2c, SharedBusType);
@@ -224,8 +224,11 @@ mod app {
         let rtc = Ds323x::new_ds3231(bus_manager.acquire());
 
         // Periodic timer
-        let mut timer = Timer::new(ctx.device.TIM2, &clocks).start_count_down(1.hz());
-        timer.listen(Event::TimeOut);
+        let mut timer = Timer::new(ctx.device.TIM2, &clocks).counter_hz();
+        if let Err(_) = timer.start(1.Hz()) {
+            Error::TimerNotStarted.log(&mut errors);
+        }
+        timer.listen(Event::Update);
         unsafe {
             // Enable TIM2 interrupt in NVIC
             pac::NVIC::unmask(pac::Interrupt::TIM2);
@@ -293,7 +296,7 @@ mod app {
         }
 
         // Clear interrupt
-        ctx.local.timer.clear_interrupt(Event::TimeOut);
+        ctx.local.timer.clear_interrupt(Event::Update);
     }
 
     /// This task is run every 10s.
@@ -462,20 +465,23 @@ mod app {
                 match ctx.shared.i2c.rtc.running() {
                     Ok(true) => serial.write(b"yes\n").ok(),
                     Ok(false) => serial.write(b"no\n").ok(),
-                    Err(ds323x::Error::Comm(hal::i2c::Error::BUS)) => {
+                    Err(ds323x::Error::Comm(hal::i2c::Error::Bus)) => {
                         serial.write(b"bus error\n").ok()
                     }
-                    Err(ds323x::Error::Comm(hal::i2c::Error::OVERRUN)) => {
+                    Err(ds323x::Error::Comm(hal::i2c::Error::Overrun)) => {
                         serial.write(b"overrun error\n").ok()
                     }
-                    Err(ds323x::Error::Comm(hal::i2c::Error::NACK)) => serial.write(b"nack\n").ok(),
-                    Err(ds323x::Error::Comm(hal::i2c::Error::TIMEOUT)) => {
+                    Err(ds323x::Error::Comm(hal::i2c::Error::NoAcknowledge(_))) => {
+                        serial.write(b"nack\n").ok()
+                    }
+                    Err(ds323x::Error::Comm(hal::i2c::Error::Timeout)) => {
                         serial.write(b"timeout\n").ok()
                     }
-                    Err(ds323x::Error::Comm(hal::i2c::Error::CRC)) => serial.write(b"crc\n").ok(),
-                    Err(ds323x::Error::Comm(hal::i2c::Error::ARBITRATION)) => {
+                    Err(ds323x::Error::Comm(hal::i2c::Error::Crc)) => serial.write(b"crc\n").ok(),
+                    Err(ds323x::Error::Comm(hal::i2c::Error::ArbitrationLoss)) => {
                         serial.write(b"arbitration lost\n").ok()
                     }
+                    Err(ds323x::Error::Comm(_)) => serial.write(b"unknown comm error\n").ok(),
                     Err(ds323x::Error::Pin(_)) => serial.write(b"pin error\n").ok(),
                     Err(ds323x::Error::InvalidInputData) => serial.write(b"data error\n").ok(),
                     Err(ds323x::Error::InvalidDeviceState) => {

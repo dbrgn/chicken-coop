@@ -21,7 +21,7 @@ usbd-serial = "0.1"
 veml6030 = "0.1.2"
 
 [dependencies.stm32f4xx-hal]
-version = "0.11"
+version = "0.12"
 features = ["rt", "stm32f411", "usb_fs"]
 
 [profile.release]
