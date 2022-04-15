@@ -324,15 +324,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
-name = "hd44780-driver"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aab2b13fdeaed7dde9133a57c28b2cbde4a8fc8c3196b5631428aad114857d3a"
-dependencies = [
- "embedded-hal 0.2.7",
-]
-
-[[package]]
 name = "heapless"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -647,9 +638,9 @@ dependencies = [
 
 [[package]]
 name = "stm32f4xx-hal"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dec85aed466acc6fcd7f2f2cc01b40e7ed54b50cc0a723f3c78b0edf9e4841a"
+checksum = "1e722ebf64a7c39a5ff08f99ccc01455226fa3b2a1778bde7e91facbf2fffaac"
 dependencies = [
  "bare-metal 1.0.0",
  "bitflags",
@@ -661,7 +652,6 @@ dependencies = [
  "embedded-storage",
  "fugit",
  "fugit-timer",
- "hd44780-driver",
  "nb 1.0.0",
  "rand_core",
  "stm32f4",

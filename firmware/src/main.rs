@@ -28,7 +28,7 @@ mod app {
     use shared_bus_rtic::SharedBus;
     use stm32f4xx_hal::{
         self as hal,
-        gpio::{gpioa, gpiob, gpioc, Alternate, Edge, Input, OpenDrain, Output, PullUp, PushPull},
+        gpio::{gpioa, gpiob, gpioc, Alternate, Edge, Input, OpenDrain, Output, PushPull},
         i2c::I2c,
         otg_fs::{UsbBus, UsbBusType, USB},
         pac,
@@ -55,8 +55,8 @@ mod app {
     type SharedBusType = I2c<
         pac::I2C1,
         (
-            gpiob::PB6<Alternate<OpenDrain, 4>>,
-            gpiob::PB7<Alternate<OpenDrain, 4>>,
+            gpiob::PB6<Alternate<4, OpenDrain>>,
+            gpiob::PB7<Alternate<4, OpenDrain>>,
         ),
     >;
 
@@ -94,7 +94,7 @@ mod app {
     #[local]
     struct LocalResources {
         // Debugging
-        button: gpioa::PA0<Input<PullUp>>,
+        button: gpioa::PA0<Input>,
         led: gpioc::PC13<Output<PushPull>>,
 
         // Periodic timer
@@ -225,7 +225,7 @@ mod app {
 
         // Periodic timer
         let mut timer = Timer::new(ctx.device.TIM2, &clocks).counter_hz();
-        if let Err(_) = timer.start(1.Hz()) {
+        if timer.start(1.Hz()).is_err() {
             Error::TimerNotStarted.log(&mut errors);
         }
         timer.listen(Event::Update);
