@@ -2,7 +2,7 @@
 name = "firmware"
 version = "0.1.0"
 authors = ["Danilo Bargen <mail@dbrgn.ch>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 ds323x = "0.5"
