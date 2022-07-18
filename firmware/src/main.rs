@@ -363,7 +363,8 @@ mod app {
         // Act depending on state
         let new_state = match state {
             State::Closed => {
-                if timestamp >= earliest_opening_timestamp && timestamp < earliest_closing_timestamp {
+                if timestamp >= earliest_opening_timestamp && timestamp < earliest_closing_timestamp
+                {
                     Some(State::PreOpening)
                 } else {
                     None
