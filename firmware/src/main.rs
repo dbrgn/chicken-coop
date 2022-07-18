@@ -14,8 +14,8 @@ mod states;
 
 const AMBIENT_LIGHT_THRESHOLD_LOW: f32 = 20.0; // Close threshold
 const AMBIENT_LIGHT_THRESHOLD_HIGH: f32 = 100.0; // Open threshold
-const EARLIEST_OPENING_TIME: (u32, u32) = (8, 30);
-const LATEST_OPENING_TIME: (u32, u32) = (9, 30);
+const EARLIEST_OPENING_TIME: (u32, u32) = (7, 15);
+const LATEST_OPENING_TIME: (u32, u32) = (9, 00);
 const EARLIEST_CLOSING_TIME: (u32, u32) = (17, 00);
 const LATEST_CLOSING_TIME: (u32, u32) = (22, 00);
 
