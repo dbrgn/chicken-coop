@@ -176,6 +176,20 @@
   (attribute "FIELD_AUTHOR" (type string) (unit none) (value "{{ SCH_FRAME_AUTHOR or AUTHOR }}"))
   (attribute "FIELD_PAGE" (type string) (unit none) (value "{{ SCH_FRAME_PAGE_X_OF_Y or PAGE_X_OF_Y }}"))
  )
+ (component 3081edf6-bda2-4e5e-9752-66a8bda34cbe
+  (lib_component 58c3c6cd-11eb-4557-aa3f-d3e05874afde)
+  (lib_variant afb86b45-68ec-47b6-8d96-153d73567228)
+  (lib_device none)
+  (name "VCC7") (value "3V3")
+  (signal 1d893320-f811-4a79-b64e-cc23d749d394 (net 149e6d5b-18ba-4a19-aad4-0ab8cbd3f31c))
+ )
+ (component 486c7235-4520-4713-a836-0a841db474f2
+  (lib_component 8076f6be-bfab-4fc1-9772-5d54465dd7e1)
+  (lib_variant f09ad258-595b-4ee9-a1fc-910804a203ae)
+  (lib_device none)
+  (name "GND6") (value "GND")
+  (signal ff161c97-29a5-43aa-a9ae-3ca7a66982ce (net e1d32c27-5982-4edb-988c-d7a89f4ae2c8))
+ )
  (component 49b319ba-a244-4f4a-be1a-8228b0a1e504
   (lib_component 58c3c6cd-11eb-4557-aa3f-d3e05874afde)
   (lib_variant afb86b45-68ec-47b6-8d96-153d73567228)
@@ -284,6 +298,16 @@
   (lib_variant 0eebde17-6d45-4f73-95fe-3078a0f68ab6)
   (lib_device 7186a6b2-4042-451f-a698-288394ec67a7)
   (name "LOGO1") (value "Made With\nLibrePCB")
+ )
+ (component dec3706c-3394-4bd8-8f09-893986ca366e
+  (lib_component 8a651a35-1da3-4355-b077-2c7d456455ee)
+  (lib_variant 1b2aa353-5c67-47ff-8e67-b7b497526d52)
+  (lib_device f6c84c17-9ec4-435e-bf48-5ac663bafb1b)
+  (name "U4") (value "")
+  (signal 28192ede-9e2f-4250-93b2-49c15b2ff3db (net c6aed6c8-8f6e-4fda-9213-e1a5bf79c09e))
+  (signal 2a66b037-7e67-4efb-8cc5-0b1221531eb1 (net 149e6d5b-18ba-4a19-aad4-0ab8cbd3f31c))
+  (signal d2b14031-de9c-4a2d-a47c-991e9bb58643 (net e1d32c27-5982-4edb-988c-d7a89f4ae2c8))
+  (signal dd015410-cc18-4433-a374-19cf6ff068f8 (net b54b2fec-7147-4fe5-91cc-da8ba11e80f1))
  )
  (component fb05abb2-72be-4760-b098-038682715d3e
   (lib_component 58c3c6cd-11eb-4557-aa3f-d3e05874afde)
