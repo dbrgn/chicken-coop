@@ -1,7 +1,7 @@
 (librepcb_board 8a11a56f-61f2-4499-abcb-0722aef9508c
  (name "default")
  (default_font "newstroke.bene")
- (grid (type lines) (interval 1.27) (unit millimeters))
+ (grid (type lines) (interval 10.0) (unit millimeters))
  (layers (inner 0))
  (design_rules
   (name "LibrePCB Default Design Rules")
@@ -72,6 +72,11 @@
    (align center bottom) (position -5.795 39.37) (rotation 180.0)
    (auto_rotate true) (mirror false) (value "{{NAME}}")
   )
+ )
+ (device 10d5ad94-51a2-42cf-87f9-dec70493dc90
+  (lib_device 58d89ecf-b978-4350-9793-16b6d84edc49)
+  (lib_footprint ec5b0cf3-e76b-4389-9dd9-89d3a977f666)
+  (position 0.0 21.59) (rotation 0.0) (mirror false)
  )
  (device 13f2d29b-1a77-471e-be3d-683997192354
   (lib_device b10f72a5-85bc-45e1-a80c-1e8b21384bd1)
@@ -648,8 +653,8 @@
  )
  (stroke_text c4a190c5-3fda-473f-9555-b4437ce5e7b0 (layer top_stop_mask)
   (height 2.0) (stroke_width 0.35) (letter_spacing auto) (line_spacing auto)
-  (align left top) (position 2.54 6.35) (rotation 90.0)
-  (auto_rotate true) (mirror false) (value "ChickenDoor v1.0")
+  (align left top) (position 8.89 6.35) (rotation 180.0)
+  (auto_rotate true) (mirror false) (value "ChickenDoor\nv1.0")
  )
 
  (hole 074820ec-4806-401b-9c2d-d94c7d073a35 (diameter 3.0) (position 37.0 62.0))

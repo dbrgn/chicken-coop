@@ -69,6 +69,12 @@
   (name "VCC5") (value "5V")
   (signal 1d893320-f811-4a79-b64e-cc23d749d394 (net 15f5a8bc-7464-4cdc-bc0f-a32479969ae7))
  )
+ (component 10d5ad94-51a2-42cf-87f9-dec70493dc90
+  (lib_component c1fb6f15-dd26-49e5-bcc3-6163364f44a6)
+  (lib_variant b5294067-040d-48be-b100-6069accc57e0)
+  (lib_device 58d89ecf-b978-4350-9793-16b6d84edc49)
+  (name "IMG1") (value "")
+ )
  (component 11cf6350-c1cd-4476-953a-2ba8dc4bd00e
   (lib_component 58c3c6cd-11eb-4557-aa3f-d3e05874afde)
   (lib_variant afb86b45-68ec-47b6-8d96-153d73567228)
