@@ -147,6 +147,11 @@
   (lib_gate 47d85234-3d2e-4b97-894f-d4560e89c2c4)
   (position 175.26 93.98) (rotation 180.0) (mirror false)
  )
+ (symbol fefa5d34-cabb-4a15-987a-5e8eaaf3e204
+  (component 0d40741b-2003-4657-b409-d42e3f7ba37a)
+  (lib_gate 2ce9d0aa-7afb-4196-8425-46c4e1c26313)
+  (position 139.7 15.24) (rotation 0.0) (mirror false)
+ )
 
  (netsegment 0511fa75-5bbf-4596-9bc2-a5b414b18894
   (net ed35643b-c026-47ce-96ba-768f1d5857ac)

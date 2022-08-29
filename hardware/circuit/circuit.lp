@@ -72,6 +72,12 @@
   (name "VCC5") (value "5V")
   (signal 1d893320-f811-4a79-b64e-cc23d749d394 (net 15f5a8bc-7464-4cdc-bc0f-a32479969ae7))
  )
+ (component 0d40741b-2003-4657-b409-d42e3f7ba37a
+  (lib_component b91cf23a-4f07-4b99-8f52-0b42304aef20)
+  (lib_variant 0eebde17-6d45-4f73-95fe-3078a0f68ab6)
+  (lib_device 7186a6b2-4042-451f-a698-288394ec67a7)
+  (name "LOGO2") (value "Made With\nLibrePCB")
+ )
  (component 10d5ad94-51a2-42cf-87f9-dec70493dc90
   (lib_component c1fb6f15-dd26-49e5-bcc3-6163364f44a6)
   (lib_variant b5294067-040d-48be-b100-6069accc57e0)
@@ -303,7 +309,7 @@
   (lib_component 8a651a35-1da3-4355-b077-2c7d456455ee)
   (lib_variant 1b2aa353-5c67-47ff-8e67-b7b497526d52)
   (lib_device f6c84c17-9ec4-435e-bf48-5ac663bafb1b)
-  (name "U4") (value "")
+  (name "U4") (value "RTC")
   (signal 28192ede-9e2f-4250-93b2-49c15b2ff3db (net c6aed6c8-8f6e-4fda-9213-e1a5bf79c09e))
   (signal 2a66b037-7e67-4efb-8cc5-0b1221531eb1 (net 149e6d5b-18ba-4a19-aad4-0ab8cbd3f31c))
   (signal d2b14031-de9c-4a2d-a47c-991e9bb58643 (net e1d32c27-5982-4edb-988c-d7a89f4ae2c8))
