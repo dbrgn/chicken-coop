@@ -1,7 +1,7 @@
 (librepcb_board 8a11a56f-61f2-4499-abcb-0722aef9508c
  (name "default")
  (default_font "newstroke.bene")
- (grid (type lines) (interval 0.635) (unit millimeters))
+ (grid (type lines) (interval 1.0) (unit millimeters))
  (layers (inner 0))
  (design_rules
   (name "LibrePCB Default Design Rules")
@@ -695,7 +695,8 @@
   (connect_style solid)
   (vertex (position 43.18 -6.35) (angle 0.0))
   (vertex (position 8.89 -6.35) (angle 0.0))
-  (vertex (position 8.89 36.83) (angle 0.0))
+  (vertex (position 8.89 35.56) (angle 90.0))
+  (vertex (position 7.62 36.83) (angle 0.0))
   (vertex (position -12.7 36.83) (angle 0.0))
   (vertex (position -12.7 82.55) (angle 0.0))
   (vertex (position 43.18 82.55) (angle 0.0))
