@@ -1,0 +1,12 @@
+(librepcb_device 58d89ecf-b978-4350-9793-16b6d84edc49
+ (name "Chicken 16mm")
+ (description "Chicken illustration")
+ (keywords "Danilo B.")
+ (author "svg2librepcb,chicken,illustration,art")
+ (version "0.1")
+ (created 2022-07-27T21:24:08Z)
+ (deprecated false)
+ (category 9028d7e5-8b5f-47e0-918e-1c1342b89e2d)
+ (component c1fb6f15-dd26-49e5-bcc3-6163364f44a6)
+ (package df0ff535-b3ca-4eea-a62b-1f59c0b5d73d)
+)

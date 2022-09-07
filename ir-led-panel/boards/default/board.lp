@@ -408,6 +408,21 @@
    (auto_rotate true) (mirror false) (value "{{VALUE}}")
   )
  )
+ (device b25b8f40-e2b1-402a-b48f-200c1dad2e75
+  (lib_device 7186a6b2-4042-451f-a698-288394ec67a7)
+  (lib_footprint 19a6ba38-a1dd-4c97-a036-11011ef4d73d)
+  (position 44.45 5.715) (rotation 0.0) (mirror true)
+  (stroke_text 9d732277-1102-4fda-be5a-0c99233c8cda (layer bot_placement)
+   (height 1.666) (stroke_width 0.333) (letter_spacing auto) (line_spacing 1.5)
+   (align left center) (position 40.22 5.715) (rotation 0.0)
+   (auto_rotate false) (mirror true) (value "{{VALUE}}")
+  )
+ )
+ (device b643e687-f746-4550-ac3e-adc36ac22a8f
+  (lib_device 58d89ecf-b978-4350-9793-16b6d84edc49)
+  (lib_footprint 73396799-5480-4487-8f5a-1dabdd305b7a)
+  (position 21.59 19.05) (rotation 0.0) (mirror true)
+ )
  (device c19b6e3d-dad6-437a-9cbb-f08af3e6d081
   (lib_device 6cabd295-07a0-432c-8410-ed3432953fa3)
   (lib_footprint 7d452d8c-a5ac-46d6-8101-b1f9930ca266)
