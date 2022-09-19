@@ -89,6 +89,10 @@ mod app {
         // I²C devices
         #[lock_free]
         i2c: SharedBusResources<SharedBusType>,
+
+        // Daylight savings time jumper
+        #[lock_free]
+        dst: gpioa::PA5<Input>,
     }
 
     #[local]
@@ -112,8 +116,8 @@ mod app {
     }
 
     #[init(local = [
-       ep_memory: [u32; 1024] = [0; 1024],
-       usb_bus: Option<UsbBusAllocator<UsbBusType>> = None,
+           ep_memory: [u32; 1024] = [0; 1024],
+           usb_bus: Option<UsbBusAllocator<UsbBusType>> = None,
     ])]
     fn init(mut ctx: init::Context) -> (SharedResources, LocalResources, init::Monotonics) {
         rtt_init_print!();
@@ -220,8 +224,9 @@ mod app {
 
         rprintln!("Light sensor setup done");
 
-        // RTC
+        // RTC and Daylight Savings Time (DST) jumper
         let rtc = Ds323x::new_ds3231(bus_manager.acquire());
+        let dst = gpioa.pa5.into_pull_up_input();
 
         // Periodic timer
         let mut timer = Timer::new(ctx.device.TIM2, &clocks).counter_hz();
@@ -253,6 +258,7 @@ mod app {
             door_sensors,
             serial,
             i2c: SharedBusResources { lightsensor, rtc },
+            dst,
         };
         let local = LocalResources {
             button,
@@ -421,7 +427,7 @@ mod app {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, shared = [serial, i2c, errors, door_sensors], local = [motor, usb_dev])]
+    #[task(binds=OTG_FS, shared = [serial, i2c, errors, door_sensors, dst], local = [motor, usb_dev])]
     fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
         if !ctx.local.usb_dev.poll(&mut [ctx.shared.serial]) {
@@ -525,8 +531,13 @@ mod app {
             },
             b'c' | b'C' => match ctx.shared.i2c.rtc.time() {
                 Ok(time) => {
-                    serial.write(b"Current time: ").ok();
+                    serial.write(b"Current raw time: ").ok();
                     print_time(&time, serial);
+                    if ctx.shared.dst.is_low() {
+                        serial.write(b" (summer time)").ok();
+                    } else {
+                        serial.write(b" (winter time)").ok();
+                    }
                     serial.write(b"\n").ok();
                 }
                 Err(_) => {
