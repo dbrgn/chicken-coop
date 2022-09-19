@@ -28,7 +28,7 @@ impl State {
         state
     }
 
-    /// Determine the initial state
+    /// Transition to a new state
     pub fn transition(&mut self, to: Self, serial: &mut SerialPortType) {
         uwrite!(
             SerialWriter(serial),
@@ -38,7 +38,7 @@ impl State {
         )
         .ok();
 
-        // TODO: Validate transition
+        // TODO: Validate transition (but allow for open <-> closed)
         // TOOD: Return side effect
 
         *self = to;

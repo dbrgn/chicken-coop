@@ -33,7 +33,7 @@ mod app {
         otg_fs::{UsbBus, UsbBusType, USB},
         pac,
         prelude::*,
-        timer::{CounterHz, Event, Timer},
+        timer::{delay::DelayMs, CounterHz, Event, Timer},
     };
     use ufmt::{uwrite, uwriteln};
     use usb_device::{
@@ -82,6 +82,14 @@ mod app {
         #[lock_free]
         door_sensors: DoorSensors,
 
+        // Motor control
+        #[lock_free]
+        motor: Motor,
+
+        // Delay timer
+        #[lock_free]
+        delay: DelayMs<pac::TIM5>,
+
         // Serial
         #[lock_free]
         serial: SerialPortType,
@@ -107,9 +115,6 @@ mod app {
 
         // Ambient light state tracker
         ambient_light: AmbientLight,
-
-        // Motor control
-        motor: Motor,
 
         // USB
         usb_dev: UsbDevice<'static, UsbBusType>,
@@ -239,6 +244,9 @@ mod app {
             pac::NVIC::unmask(pac::Interrupt::TIM2);
         }
 
+        // Delay timer
+        let delay = ctx.device.TIM5.delay_ms(&clocks);
+
         // Wire up button interrupt
         button.make_interrupt_source(&mut syscfg);
         button.enable_interrupt(&mut ctx.device.EXTI);
@@ -256,6 +264,8 @@ mod app {
             state,
             errors,
             door_sensors,
+            motor,
+            delay,
             serial,
             i2c: SharedBusResources { lightsensor, rtc },
             dst,
@@ -266,7 +276,6 @@ mod app {
             timer,
             timer_counter: 10,
             ambient_light,
-            motor,
             usb_dev,
         };
         (shared, local, init::Monotonics())
@@ -306,7 +315,7 @@ mod app {
     }
 
     /// This task is run every 10s.
-    #[task(shared = [state, i2c, serial, errors], local = [ambient_light])]
+    #[task(shared = [state, i2c, serial, door_sensors, motor, delay, errors], local = [ambient_light])]
     fn update(mut ctx: update::Context) {
         // Error collector
         let errors = &mut ctx.shared.errors;
@@ -378,14 +387,21 @@ mod app {
             }
             State::PreOpening => {
                 // Read brightness
-                if brightness_opt
+                let open = if brightness_opt
                     .map(|brightness| brightness.is_day())
                     .unwrap_or(false)
                 {
-                    uwriteln!(SerialWriter(serial), "Daylight level reached, opening",).ok();
-                    Some(State::Open)
+                    uwriteln!(SerialWriter(serial), "Daylight level reached, opening").ok();
+                    true
                 } else if timestamp > latest_opening_timestamp {
                     // If brightness couldn't be read, or if latest opening time is reached, open
+                    uwriteln!(SerialWriter(serial), "Latest opening time reached, opening").ok();
+                    true
+                } else {
+                    false
+                };
+                if open {
+                    open_door(ctx.shared.door_sensors, ctx.shared.motor, ctx.shared.delay);
                     Some(State::Open)
                 } else {
                     None
@@ -400,14 +416,21 @@ mod app {
             }
             State::PreClosing => {
                 // Read brightness
-                if brightness_opt
+                let close = if brightness_opt
                     .map(|brightness| brightness.is_night())
                     .unwrap_or(false)
                 {
                     uwriteln!(SerialWriter(serial), "Nighttime level reached, closing",).ok();
-                    Some(State::Closed)
+                    true
                 } else if timestamp > latest_closing_timestamp {
                     // If brightness couldn't be read, or if latest closing time is reached, close
+                    uwriteln!(SerialWriter(serial), "Latest closing time reached, closing",).ok();
+                    true
+                } else {
+                    false
+                };
+                if close {
+                    close_door(ctx.shared.door_sensors, ctx.shared.motor, ctx.shared.delay);
                     Some(State::Closed)
                 } else {
                     None
@@ -427,7 +450,7 @@ mod app {
     }
 
     /// Task that binds to the "USB OnTheGo FS global interrupt" (OTG_FS).
-    #[task(binds=OTG_FS, shared = [serial, i2c, errors, door_sensors, dst], local = [motor, usb_dev])]
+    #[task(binds=OTG_FS, shared = [serial, state, i2c, errors, door_sensors, motor, delay, dst], local = [usb_dev])]
     fn on_usb(mut ctx: on_usb::Context) {
         // Poll USB device for events
         if !ctx.local.usb_dev.poll(&mut [ctx.shared.serial]) {
@@ -513,6 +536,8 @@ mod app {
                 serial.write(b" t - Output RTC temperature\n").ok();
                 serial.write(b" f - Motor FW\n").ok();
                 serial.write(b" b - Motor BW\n").ok();
+                serial.write(b" m - Morning (open door)\n").ok();
+                serial.write(b" n - Night (close door)\n").ok();
                 serial.write(b" o - Motor off\n").ok();
                 serial.write(b"\n").ok();
             }
@@ -559,19 +584,65 @@ mod app {
                 }
             },
             b'f' | b'F' => {
-                ctx.local.motor.forwards();
                 serial.write(b"Motor: Move forwards\n").ok();
+                ctx.shared.motor.forwards();
             }
             b'b' | b'B' => {
-                ctx.local.motor.backwards();
                 serial.write(b"Motor: Move backwards\n").ok();
+                ctx.shared.motor.backwards();
+            }
+            b'm' | b'M' => {
+                // Validate current opening status
+                if ctx.shared.door_sensors.query() != DoorStatus::Closed {
+                    serial
+                        .write(b"Cannot open door: Door is not closed.\n")
+                        .ok();
+                    return;
+                }
+                serial.write(b"Good morning! Opening door.\n").ok();
+                // TODO: Disable updates while opening
+                // Open
+                open_door(ctx.shared.door_sensors, ctx.shared.motor, ctx.shared.delay);
+                ctx.shared.state.transition(State::Open, serial);
+            }
+            b'n' | b'N' => {
+                // Validate current opening status
+                if ctx.shared.door_sensors.query() != DoorStatus::Open {
+                    serial.write(b"Cannot close door: Door is not open.\n").ok();
+                    return;
+                }
+                serial.write(b"Good night! Closing door.\n").ok();
+                // TODO: Disable updates while closing
+                // Close
+                close_door(ctx.shared.door_sensors, ctx.shared.motor, ctx.shared.delay);
+                ctx.shared.state.transition(State::Closed, serial);
             }
             b'o' | b'O' => {
-                ctx.local.motor.off();
+                ctx.shared.motor.off();
                 serial.write(b"Motor: Off\n").ok();
             }
             _ => { /* Unknown command, ignore */ }
         }
+    }
+
+    /// Open the door.
+    fn open_door(door_sensors: &DoorSensors, motor: &mut Motor, delay: &mut DelayMs<pac::TIM5>) {
+        // Turn on motor until door is open
+        motor.forwards();
+        while door_sensors.query() != DoorStatus::Open {
+            delay.delay_ms(5_u32);
+        }
+        motor.off();
+    }
+
+    /// Close the door.
+    fn close_door(door_sensors: &DoorSensors, motor: &mut Motor, delay: &mut DelayMs<pac::TIM5>) {
+        // Turn on motor until door is closed
+        motor.backwards();
+        while door_sensors.query() != DoorStatus::Closed {
+            delay.delay_ms(5_u32);
+        }
+        motor.off();
     }
 
     /// Print the 24h time with proper 0-prefixing.

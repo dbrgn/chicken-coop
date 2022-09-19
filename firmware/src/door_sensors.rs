@@ -8,7 +8,7 @@ pub struct DoorSensors {
     switch_closed: EPin<Input>,
 }
 
-#[derive(uDebug)]
+#[derive(uDebug, PartialEq)]
 pub enum DoorStatus {
     Open,
     Closed,
