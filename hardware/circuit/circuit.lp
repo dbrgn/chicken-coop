@@ -60,14 +60,6 @@
   (signal 3452d36e-1ce8-4b7c-8e5b-90c2e4929ed8 (net c6aed6c8-8f6e-4fda-9213-e1a5bf79c09e))
   (signal ad623f98-9e73-49c3-9404-f7cfa99d17cd (net 149e6d5b-18ba-4a19-aad4-0ab8cbd3f31c))
  )
- (component 04602981-89fd-4184-9cc2-9f2055e32df1
-  (lib_component b740698a-90b7-40ab-a3d2-69b64e7b8163)
-  (lib_variant 832bd731-26d7-4227-898d-91b072c28e8f)
-  (lib_device a1e423a9-a13e-49c0-bbdb-7d5e56699019)
-  (name "J1") (value "Motor")
-  (signal 22abcb7c-01b3-4d52-88ef-1ff95c5ad334 (net ed35643b-c026-47ce-96ba-768f1d5857ac))
-  (signal 44af71fe-a47a-4eb6-b1ac-f12617481fb9 (net 8f66ebd5-a0e6-490f-8485-c0cb2b1d58e8))
- )
  (component 0c56688a-774f-4147-bd78-b01ec3bc0a13
   (lib_component 58c3c6cd-11eb-4557-aa3f-d3e05874afde)
   (lib_variant afb86b45-68ec-47b6-8d96-153d73567228)
@@ -157,6 +149,15 @@
   (lib_device none)
   (name "GND5") (value "GND")
   (signal ff161c97-29a5-43aa-a9ae-3ca7a66982ce (net e1d32c27-5982-4edb-988c-d7a89f4ae2c8))
+ )
+ (component 1e5440bd-03aa-4c26-8fb1-eefe144c353e
+  (lib_component a15721c8-108b-4e32-9169-54b850b91cd8)
+  (lib_variant 8e2d5adb-5179-4786-8234-2304908343c6)
+  (lib_device 0363e67a-d0cb-484f-978f-8297f8282383)
+  (name "J1") (value "Motor")
+  (signal 0bbf3928-712f-4b2b-b987-eba9385f1b45 (net e1d32c27-5982-4edb-988c-d7a89f4ae2c8))
+  (signal 17a69321-7804-4452-aeb6-5ef366d4ce00 (net 8f66ebd5-a0e6-490f-8485-c0cb2b1d58e8))
+  (signal af90f8c9-203c-416a-a72c-99f859303324 (net ed35643b-c026-47ce-96ba-768f1d5857ac))
  )
  (component 2015af1d-de1b-4b6c-b9ed-6fc8021483c7
   (lib_component 8076f6be-bfab-4fc1-9772-5d54465dd7e1)
@@ -251,6 +252,13 @@
   (lib_device none)
   (name "VCC6") (value "5V")
   (signal 1d893320-f811-4a79-b64e-cc23d749d394 (net 15f5a8bc-7464-4cdc-bc0f-a32479969ae7))
+ )
+ (component 7fd168ba-6eb8-4846-b97c-e32dc210d390
+  (lib_component 8076f6be-bfab-4fc1-9772-5d54465dd7e1)
+  (lib_variant f09ad258-595b-4ee9-a1fc-910804a203ae)
+  (lib_device none)
+  (name "GND8") (value "GND")
+  (signal ff161c97-29a5-43aa-a9ae-3ca7a66982ce (net e1d32c27-5982-4edb-988c-d7a89f4ae2c8))
  )
  (component 87062044-455b-4b77-b78a-5cc88c292104
   (lib_component f62feaaa-19c4-4378-b699-4528637e1107)
