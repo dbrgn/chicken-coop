@@ -256,7 +256,7 @@
   (lib_component f62feaaa-19c4-4378-b699-4528637e1107)
   (lib_variant f247c91a-1ecb-454d-b8ff-362950773c0b)
   (lib_device 016a3bad-8903-4705-825d-953d402b9467)
-  (name "J6") (value "")
+  (name "J6") (value "UART")
   (signal 3434e0aa-f743-4004-8f2c-f1dbf80cf15f (net 5575526f-4592-4cdf-9905-152d460ef60a))
   (signal 423cfab4-0aac-4e54-9398-a0224453e6be (net b015820b-591a-4e56-80c1-53e4d4ce2265))
  )
