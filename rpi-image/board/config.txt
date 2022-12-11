@@ -34,3 +34,17 @@ dtoverlay=krnbt=on
 
 # Enable I²C hardware
 dtparam=i2c_arm=on
+
+# Turn off PWR LED
+dtparam=pwr_led_trigger=default-on
+dtparam=pwr_led_activelow=off
+
+# Turn off ACT LED
+dtparam=act_led_trigger=none
+dtparam=act_led_activelow=off
+
+# Turn off Ethernet ACT LED
+dtparam=eth_led0=4
+
+# Turn off Ethernet LNK LED
+dtparam=eth_led1=4
