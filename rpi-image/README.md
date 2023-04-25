@@ -20,4 +20,4 @@ To build:
 
 To flash:
 
-    sudo dd if=buildroot-2022.02/output/images/sdcard.img of=/dev/disk/<your-disk> bs=8M
+    sudo dd if=buildroot-2022.11/output/images/sdcard.img of=/dev/disk/<your-disk> bs=8M
