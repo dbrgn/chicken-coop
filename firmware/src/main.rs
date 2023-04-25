@@ -294,10 +294,14 @@ mod app {
     }
 
     /// This task runs every second.
-    #[task(binds = TIM2, local = [led, timer, timer_counter])]
+    #[task(binds = TIM2, local = [led, timer, timer_counter], shared = [state])]
     fn every_second(ctx: every_second::Context) {
-        // Toggle LED
-        ctx.local.led.toggle();
+        // Toggle or turn on LED
+        if ctx.shared.state.is_error() {
+            ctx.local.led.set_high();
+        } else {
+            ctx.local.led.toggle();
+        }
 
         // Decrement timer counter to work around the fact that the HAL
         // currently doesn't support wait times >1s (because sleeping is

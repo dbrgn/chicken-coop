@@ -47,6 +47,9 @@ To detect an open or closed door, reed switches are used.
 - `PreClosing`: Waiting for `CLOSING_LUX_THRESHOLD` or `LATEST_CLOSING_TIME`
 - `Error`: Reachable from any state when something goes wrong (e.g. reading a sensor)
 
+If the firmware is in non-error state, the blue LED will toggle every second.
+If it's in error state, the LED will remain on.
+
 ## Firmware: Testing
 
 To run unit tests:

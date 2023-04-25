@@ -7,7 +7,7 @@ use crate::{
     serial::{SerialPortType, SerialWriter},
 };
 
-#[derive(uDebug)]
+#[derive(uDebug, PartialEq)]
 pub enum State {
     PreOpening,
     Open,
@@ -42,6 +42,10 @@ impl State {
         // TOOD: Return side effect
 
         *self = to;
+    }
+
+    pub fn is_error(&self) -> bool {
+        *self == State::Error
     }
 
     pub fn reset(&mut self, door_status: DoorStatus, serial: &mut SerialPortType) {
