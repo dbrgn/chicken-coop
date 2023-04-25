@@ -8,7 +8,7 @@ two cameras to the browser using WebRTC.
 The main goal of this project is to automatically open the door in the morning
 (using a gear motor), and to close it at night.
 
-A combination of RTC and ambient light sensor is used:
+In the controller, a combination of RTC and ambient light sensor is used:
 
 - In the morning, the door will open if the `OPENING_LUX_THRESHOLD` is passed,
   but not before `EARLIEST_OPENING_TIME`.
@@ -22,6 +22,14 @@ A combination of RTC and ambient light sensor is used:
   door will close anyways.
 
 To detect an open or closed door, reed switches are used.
+
+The controller is connected via USB / serial to a Raspberry Pi. This Raspberry
+Pi is used for streaming two webcams to a website (an outdoor webcam and an
+indoor infrared night-sight webcam).
+
+Additionally, the Raspberry Pi sends out Threema notifications whenever the
+door status changes (or if an error occurs). For this, the `observer-service`
+is used.
 
 ### Firmware: State machine
 

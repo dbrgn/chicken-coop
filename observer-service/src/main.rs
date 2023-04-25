@@ -8,7 +8,7 @@ use anyhow::Context;
 use clap::{arg, command, Parser};
 use lazy_static::lazy_static;
 use regex::Regex;
-use threema_gateway::{ApiBuilder, RecipientKey};
+use threema_gateway::RecipientKey;
 
 mod config;
 
@@ -22,7 +22,8 @@ struct Args {
     config: PathBuf,
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     // Parse command line arguments
     let args = Args::parse();
 
@@ -39,7 +40,7 @@ fn main() -> anyhow::Result<()> {
             return Ok(());
         }
     };
-    let config: Config = raw_config.try_into()?;
+    let config = Config::from_raw(raw_config).await?;
 
     // Connect to serial device
     let mut raw_port =
@@ -69,8 +70,11 @@ fn main() -> anyhow::Result<()> {
     println!("Waiting for serial data...");
     loop {
         match port.read_line(&mut line_buffer) {
-            Ok(_size) => process_line(line_buffer.trim()),
-            Err(e) => eprintln!("Error while reading: {}", e),
+            Ok(_size) => process_line(line_buffer.trim(), &config).await,
+            Err(e) => {
+                eprintln!("Error while reading: {}", e);
+                std::process::exit(1);
+            }
         }
         line_buffer.clear();
     }
@@ -109,6 +113,36 @@ fn parse_line(line: &str) -> Option<Event> {
     None
 }
 
-fn process_line(line: &str) {
-    println!("Line: {:?}", parse_line(line));
+async fn process_line(line: &str, config: &Config) {
+    match parse_line(line) {
+        Some(Event::Update { current_state }) => {
+            println!("State: {}", current_state);
+        }
+        Some(Event::Transition { from, to }) => {
+            println!("Transition from {} to {}", from, to);
+            if let Some(threema) = &config.threema {
+                let emoji = match &*to {
+                    "PreOpening" => "🐔",
+                    "Open" => "☀️",
+                    "PreClosing" => "🐔",
+                    "Closed" => "🌙",
+                    "Error" => "😱",
+                    _ => "😶",
+                };
+                for (recipient, public_key) in &threema.recipients {
+                    let msg = threema.api.encrypt_text_msg(
+                        &format!("{} Chicken door status: {} → {}", emoji, from, to),
+                        &RecipientKey(public_key.clone()), // TODO: https://github.com/dbrgn/threema-gateway-rs/issues/68, then move into config
+                    );
+                    if let Err(e) = threema.api.send(&recipient, &msg, false).await {
+                        println!(
+                            "Error: Failed to notify Threema user {}: {:#}",
+                            recipient, e
+                        );
+                    }
+                }
+            }
+        }
+        None => {}
+    }
 }

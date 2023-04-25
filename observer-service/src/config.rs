@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::Read,
     path::{Path, PathBuf},
@@ -6,9 +7,8 @@ use std::{
 };
 
 use anyhow::Context;
-use data_encoding::HEXLOWER_PERMISSIVE;
 use serde::{Deserialize, Serialize};
-use threema_gateway::SecretKey;
+use threema_gateway::{ApiBuilder, E2eApi, PublicKey};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct RawConfig {
@@ -35,7 +35,7 @@ impl RawConfig {
             },
             threema: Some(RawThreema {
                 gateway_id: "*YOUR_ID".to_string(),
-                gateway_secret: "your-gateway-secret".to_string(),
+                api_secret: "your-gateway-secret".to_string(),
                 private_key: "00112233..CCDDEEFF".to_string(),
                 recipients: vec!["AAAAAAAA".to_string(), "BBBBBBBB".to_string()],
             }),
@@ -57,8 +57,8 @@ pub struct RawThreema {
     /// Gateway ID (8 characters)
     pub gateway_id: String,
 
-    /// Gateway secret (from the Gateway website)
-    pub gateway_secret: String,
+    /// API secret (from the Gateway website)
+    pub api_secret: String,
 
     /// Private key (32 bytes as lowercase hex string)
     pub private_key: String,
@@ -75,41 +75,40 @@ pub struct Config {
 
 #[derive(Debug)]
 pub struct Threema {
-    /// Gateway ID (8 characters)
-    pub gateway_id: String,
-
-    /// Gateway secret (from the Gateway website)
-    pub gateway_secret: String,
-
-    /// Private key (32 bytes as lowercase hex string)
-    pub private_key: SecretKey,
+    /// E2E API instance
+    pub api: E2eApi,
 
     /// List of recipients (Threema IDs)
-    pub recipients: Vec<String>,
+    pub recipients: HashMap<String, PublicKey>,
 }
 
-impl TryFrom<RawConfig> for Config {
-    type Error = anyhow::Error;
-
-    fn try_from(raw_config: RawConfig) -> Result<Self, Self::Error> {
+impl Config {
+    pub async fn from_raw(raw_config: RawConfig) -> anyhow::Result<Self> {
         // Validate RawThreema config
-        let threema = match raw_config.threema {
-            Some(raw_threema) => {
-                let private_key = SecretKey::from_slice(
-                    HEXLOWER_PERMISSIVE
-                        .decode(raw_threema.private_key.as_bytes())
-                        .context("Could not decode Threema private key hex string")?
-                        .as_ref(),
-                )
-                .ok_or(anyhow::anyhow!("Invalid Threema private key"))?;
-                Some(Threema {
-                    gateway_id: raw_threema.gateway_id,
-                    gateway_secret: raw_threema.gateway_secret,
-                    private_key,
-                    recipients: raw_threema.recipients,
-                })
+        let threema = if let Some(raw_threema) = raw_config.threema {
+            // Create API instance
+            let api = ApiBuilder::new(raw_threema.gateway_id, raw_threema.api_secret)
+                .with_private_key_str(&raw_threema.private_key)
+                .and_then(|builder| builder.into_e2e())
+                .context("Failed to create Threema E2eApi instance")?;
+
+            // Fetch public keys for recipients
+            let mut recipients = HashMap::new();
+            println!(
+                "Fetching {} Threema public keys",
+                raw_threema.recipients.len()
+            );
+            for recipient in raw_threema.recipients {
+                let pubkey = api.lookup_pubkey(&recipient).await.context(format!(
+                    "Could not fetch public key for recipient {}",
+                    &recipient
+                ))?;
+                recipients.insert(recipient, pubkey);
             }
-            None => None,
+
+            Some(Threema { api, recipients })
+        } else {
+            None
         };
 
         Ok(Config {
