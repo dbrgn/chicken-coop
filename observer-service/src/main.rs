@@ -8,30 +8,46 @@ use anyhow::Context;
 use clap::{arg, command, Parser};
 use lazy_static::lazy_static;
 use regex::Regex;
+use threema_gateway::{ApiBuilder, RecipientKey};
+
+mod config;
+
+use crate::config::{Config, RawConfig};
 
 #[derive(Parser, Debug)]
 #[command(about, author = "Danilo Bargen", version)]
 struct Args {
-    /// Path to the serial device
-    #[arg(short, long, default_value = "/dev/ttyACM0")]
-    serialport: PathBuf,
-
-    /// Serial baud rate
-    #[arg(short, long, default_value = "9600")]
-    baudrate: u32,
+    /// Path to config file
+    #[arg(short, long, default_value = "config.toml")]
+    config: PathBuf,
 }
 
 fn main() -> anyhow::Result<()> {
     // Parse command line arguments
     let args = Args::parse();
 
+    // Parse config
+    let raw_config = match RawConfig::load(&args.config) {
+        Ok(val) => val,
+        Err(e) => {
+            println!("Error: Failed to load config: {:#}", e);
+            println!();
+            println!(
+                "Example config:\n\n{}",
+                toml::to_string(&RawConfig::example())?
+            );
+            return Ok(());
+        }
+    };
+    let config: Config = raw_config.try_into()?;
+
     // Connect to serial device
-    let raw_port = serialport::new(args.serialport.to_str().unwrap(), args.baudrate)
+    let raw_port = serialport::new(config.serial.port.to_str().unwrap(), config.serial.baudrate)
         .timeout(Duration::from_secs(30))
         .open()
         .context(format!(
             "Failed to open serial port at {:?}",
-            args.serialport
+            config.serial.port
         ))?;
 
     // Buffered reading
