@@ -1,0 +1,11 @@
+[package]
+name = "observer-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["std", "color", "help", "usage", "error-context", "derive", "cargo", "env"], default-features = false }
+lazy_static = "1"
+regex = "1"
+serialport = "4"
