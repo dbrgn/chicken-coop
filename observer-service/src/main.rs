@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     path::PathBuf,
     time::Duration,
 };
@@ -42,19 +42,31 @@ fn main() -> anyhow::Result<()> {
     let config: Config = raw_config.try_into()?;
 
     // Connect to serial device
-    let raw_port = serialport::new(config.serial.port.to_str().unwrap(), config.serial.baudrate)
-        .timeout(Duration::from_secs(30))
-        .open()
-        .context(format!(
-            "Failed to open serial port at {:?}",
-            config.serial.port
-        ))?;
+    let mut raw_port =
+        serialport::new(config.serial.port.to_str().unwrap(), config.serial.baudrate)
+            .timeout(Duration::from_millis(1))
+            .open()
+            .context(format!(
+                "Failed to open serial port at {:?}",
+                config.serial.port
+            ))?;
 
-    // Buffered reading
-    let mut port = BufReader::new(raw_port);
+    // Clear input buffer by reading and discarding everything
+    {
+        let mut buf = Vec::new();
+        let _ = raw_port.read_to_end(&mut buf);
+        println!("Cleared {} bytes from input buffer", buf.len());
+    }
+
+    // Reconfigure timeout
+    raw_port
+        .set_timeout(Duration::from_secs(30))
+        .context("Could not set timeout")?;
 
     // Main loop
     let mut line_buffer = String::new();
+    let mut port = BufReader::new(raw_port);
+    println!("Waiting for serial data...");
     loop {
         match port.read_line(&mut line_buffer) {
             Ok(_size) => process_line(line_buffer.trim()),
@@ -62,8 +74,6 @@ fn main() -> anyhow::Result<()> {
         }
         line_buffer.clear();
     }
-
-    Ok(())
 }
 
 #[derive(Debug)]
