@@ -3,6 +3,10 @@
 An automated door for our chicken coop, plus a Raspberry Pi that livestreams
 two cameras to the browser using WebRTC.
 
+## Block diagram
+
+![Block diagram](chicken-coop.png)
+
 ## How it works
 
 The main goal of this project is to automatically open the door in the morning
