@@ -3,7 +3,7 @@
  (description "A 1x2 screw terminal.\n\nGenerated with librepcb-parts-generator (generate_connectors.py)")
  (keywords "connector, 1x2, screw terminal, terminal block")
  (author "Danilo B.")
- (version "0.1")
+ (version "0.2")
  (created 2022-07-16T21:23:20Z)
  (deprecated false)
  (generated_by "")

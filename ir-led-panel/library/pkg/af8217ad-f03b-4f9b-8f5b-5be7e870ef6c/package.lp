@@ -1,5 +1,5 @@
 (librepcb_package af8217ad-f03b-4f9b-8f5b-5be7e870ef6c
- (name "Aliexpress Screw Terminal 2.54mm")
+ (name "Aliexpress Screw Terminal 2.54mm 1x02")
  (description "Screw terminal 2.54 mm pitch.\n\nhttps://de.aliexpress.com/item/32811545568.html")
  (keywords "terminal block,screw,tht")
  (author "Danilo B.")

@@ -35,7 +35,7 @@
   (buried_vias_allowed false)
   (allowed_npth_slots single_segment_straight)
   (allowed_pth_slots single_segment_straight)
-  (approvals_version "0.2")
+  (approvals_version "1")
  )
  (fabrication_output_settings
   (base_path "./output/{{VERSION}}/gerber/{{PROJECT}}")
@@ -60,7 +60,7 @@
  (device 02fdb827-3642-49b0-ab89-7d384dc09e2e
   (lib_device a6a6744d-7d3b-450a-b782-feca43939ca5)
   (lib_footprint 95e55ff1-3db6-46b2-8319-0d0a7420d15f)
-  (lib_3d_model none)
+  (lib_3d_model a7b6870c-f390-4ad3-ae99-bc5b9e654210)
   (position 52.07 26.67) (rotation 180.0) (flip false) (lock false)
   (stroke_text cbeaeee2-44a7-4a54-b1f1-bc74b9585cb7 (layer top_values)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
@@ -148,7 +148,7 @@
  (device 31ceccbc-a753-471e-89b5-fff0996dab8f
   (lib_device a6a6744d-7d3b-450a-b782-feca43939ca5)
   (lib_footprint 3983cdc8-617d-4016-b8ba-5bc3002994cb)
-  (lib_3d_model none)
+  (lib_3d_model a7b6870c-f390-4ad3-ae99-bc5b9e654210)
   (position 52.07 10.16) (rotation 180.0) (flip false) (lock false)
   (stroke_text 49a0d0fc-aeb5-43ac-a7d9-a5d687ab224c (layer top_names)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
@@ -180,7 +180,7 @@
  (device 6d56effa-f23b-48d5-b485-cdf1ec133639
   (lib_device a6a6744d-7d3b-450a-b782-feca43939ca5)
   (lib_footprint 95e55ff1-3db6-46b2-8319-0d0a7420d15f)
-  (lib_3d_model none)
+  (lib_3d_model a7b6870c-f390-4ad3-ae99-bc5b9e654210)
   (position 59.69 14.605) (rotation 0.0) (flip false) (lock false)
   (stroke_text cbeaeee2-44a7-4a54-b1f1-bc74b9585cb7 (layer top_legend)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
@@ -196,7 +196,7 @@
  (device 738abaec-7de0-4a87-bd08-fc08ac0cd5fa
   (lib_device a0e021c0-90ab-4415-802e-40a847f682c8)
   (lib_footprint 63478879-99c7-4b5c-b515-a821b6bd2b7c)
-  (lib_3d_model none)
+  (lib_3d_model 3f8c5a99-3985-4e15-bc18-756eaf43e396)
   (position 54.61 5.08) (rotation 180.0) (flip false) (lock false)
   (stroke_text 11dbf986-0235-4a2f-8af0-ecc66f92607e (layer top_legend)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
@@ -212,7 +212,7 @@
  (device 77a73a52-ab0b-467b-9d54-1e1568a8c6d0
   (lib_device 9ac8e65e-83a7-42c7-9ebe-8017995828f3)
   (lib_footprint 82c89463-202e-48e4-8260-365b51a3cf97)
-  (lib_3d_model none)
+  (lib_3d_model 77156d28-95d6-4c48-9dbd-bd93dcf574c0)
   (position 60.325 11.43) (rotation 90.0) (flip false) (lock false)
   (stroke_text 558f0d2b-5329-4be0-bd41-308f4ab25266 (layer top_values)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
@@ -316,7 +316,7 @@
  (device a9ccbf4a-b5b3-41ca-8d01-87ab4edf7fa3
   (lib_device a6a6744d-7d3b-450a-b782-feca43939ca5)
   (lib_footprint 3983cdc8-617d-4016-b8ba-5bc3002994cb)
-  (lib_3d_model none)
+  (lib_3d_model a7b6870c-f390-4ad3-ae99-bc5b9e654210)
   (position 52.07 21.59) (rotation 180.0) (flip false) (lock false)
   (stroke_text 49a0d0fc-aeb5-43ac-a7d9-a5d687ab224c (layer top_names)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
@@ -509,7 +509,7 @@
  (device e5518eb5-1efb-4cfe-af84-f9ace3cf4141
   (lib_device a0e021c0-90ab-4415-802e-40a847f682c8)
   (lib_footprint 63478879-99c7-4b5c-b515-a821b6bd2b7c)
-  (lib_3d_model none)
+  (lib_3d_model 3f8c5a99-3985-4e15-bc18-756eaf43e396)
   (position 54.61 17.78) (rotation 180.0) (flip false) (lock false)
   (stroke_text 11dbf986-0235-4a2f-8af0-ecc66f92607e (layer top_legend)
    (height 0.8) (stroke_width 0.15) (letter_spacing auto) (line_spacing auto)
