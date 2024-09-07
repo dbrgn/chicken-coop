@@ -1,5 +1,6 @@
 // Determine server URL
-const SERVER = "http://" + window.location.hostname + ":8088/janus";
+//const SERVER = "http://" + window.location.hostname + ":8088/janus";
+const SERVER = `${window.location.protocol}//${window.location.hostname}/janus/`;
 
 // Determine stream IDs
 const STREAMS = {
